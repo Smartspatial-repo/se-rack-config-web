@@ -20,7 +20,10 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@components/*": ["./src/app/components/*"]
+      "@components/*": ["./src/app/components/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@theme/*": ["./src/theme/*"],
+      "@lib/*": ["./src/lib/*"]
     }
   },
   "include": [

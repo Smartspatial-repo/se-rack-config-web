@@ -1,0 +1,17 @@
+/* MUI CssBaseline owns the palette, body layout and Montserrat font. */
+html {
+  min-height: 100%;
+  /* Keep page width stable when content starts or stops overflowing. */
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+}
