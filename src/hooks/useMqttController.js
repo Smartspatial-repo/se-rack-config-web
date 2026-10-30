@@ -116,12 +116,14 @@ export function useMqttController() {
         };
 
         try {
+          const requestBody = JSON.stringify(item.command);
+          console.log("Commands API request:", requestBody);
           const response = await fetch("/api/mqtt/commands", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
             cache: "no-store",
-            body: JSON.stringify(item.command),
+            body: requestBody,
             signal: controller.signal,
           });
           const result = await response.json();
