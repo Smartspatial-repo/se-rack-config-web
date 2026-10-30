@@ -119,6 +119,8 @@ export function HomeUi({
   onSlotSelect,
   onSlotChange,
   mqttFeedback,
+  connectionPanel,
+  controlsDisabled = false,
   voiceStatus,
   voiceTranscript,
   voiceAudioLevel,
@@ -137,14 +139,25 @@ export function HomeUi({
       <MemoRackHeader screenLabel={screenLabel} connectionStatus={connectionStatus} />
 
       <Container variant="custom" maxWidth={false} component="main" id="main-content" tabIndex={-1} sx={{ pt: { xs: 4, md: 6 }, pb: 3, scrollMarginTop: { xs: 200, md: 140 } }}>
-        <RackControlsArea
-          controls={controls}
-          onControlsChange={onControlsChange}
-          onRackSelect={onRackSelect}
-          onSystemSelect={onSystemSelect}
-          onSlotSelect={onSlotSelect}
-          onSlotChange={onSlotChange}
-        />
+        {connectionPanel && <Box sx={{ mb: 3 }}>{connectionPanel}</Box>}
+        <Box
+          inert={controlsDisabled ? true : undefined}
+          aria-busy={controlsDisabled}
+          sx={{
+            opacity: controlsDisabled ? 0.58 : 1,
+            transition: "opacity 120ms ease",
+            "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+          }}
+        >
+          <RackControlsArea
+            controls={controls}
+            onControlsChange={onControlsChange}
+            onRackSelect={onRackSelect}
+            onSystemSelect={onSystemSelect}
+            onSlotSelect={onSlotSelect}
+            onSlotChange={onSlotChange}
+          />
+        </Box>
         <Box sx={{ mt: 4 }}>
           <VoiceAgentPanel status={voiceStatus ?? (onStartVoice ? "idle" : "unavailable")} transcript={voiceTranscript} audioLevel={voiceAudioLevel} onStart={handleStartVoice} onEnd={onEndVoice} />
         </Box>
