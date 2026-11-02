@@ -1,4 +1,8 @@
 // Shared, credential-free contract used by the UI, API validation, and Unreal docs.
+import { getCommandLocation, getLocationCommand } from "./locationMap.js";
+
+export { getCommandLocation, getLocationCommand } from "./locationMap.js";
+
 const RACKS = ["mgx", "advanced-sx"];
 const MODELS = ["gb300", "vera-rubin"];
 const EQUIPMENT = ["generic-server", "generic-switch", "ocp-powershell"];
@@ -62,8 +66,37 @@ export function createRackCommand(input) {
   return parseRackCommand({ ...input, commandId });
 }
 
-export function buildMqttPayload(input, { screenId, format = "envelope" }) {
+/** Browser body stays {location:N}; the request ID travels separately in a header. */
+export function buildCommandRequest(input) {
   const command = parseRackCommand(input);
+  return {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Command-Id": command.commandId,
+    },
+    body: JSON.stringify({ location: getCommandLocation(command) }),
+  };
+}
+
+/** Accept the new numeric body and existing semantic API clients. */
+export function parseCommandRequest(input, { commandId } = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) invalid("A command object is required.");
+  if (Object.hasOwn(input, "location")) {
+    if (Object.keys(input).length !== 1) invalid("Only location is allowed in a numeric command body.");
+    const fields = getLocationCommand(input.location);
+    return commandId === undefined
+      ? createRackCommand(fields)
+      : parseRackCommand({ ...fields, commandId });
+  }
+  const command = parseRackCommand(input);
+  if (commandId !== undefined && commandId !== command.commandId) invalid("Conflicting command IDs.");
+  return command;
+}
+
+export function buildMqttPayload(input, { screenId, format = "location" } = {}) {
+  const command = parseRackCommand(input);
+  // JSON.stringify at the publisher produces exactly {"location":N}.
+  if (format === "location") return { location: getCommandLocation(command) };
   // Flat messages match the reported Unreal Phase 1 router contract.
   if (format === "flat") return { ...command, screenId };
   if (format !== "envelope") throw new Error("Unsupported MQTT payload format.");

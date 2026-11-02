@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createRackCommand, describeRackCommand } from "@/lib/mqtt/commands";
+import { buildCommandRequest, createRackCommand, describeRackCommand } from "@/lib/mqtt/commands";
 
 const QUEUE_LIMIT = 32;
 const MAX_QUEUE_AGE_MS = 30000;
@@ -15,6 +15,14 @@ const NON_RETRYABLE_CODES = new Set([
   "INVALID_COMMAND", "ORIGIN_NOT_ALLOWED", "INVALID_CONTENT_TYPE",
   "BODY_TOO_LARGE", "COMMAND_QUEUE_EXPIRED",
 ]);
+
+// Log only validated commands. JSON text preserves the exact payload in DevTools.
+function logCommand(stage, command, level = "info", details = {}) {
+  console[level](
+    `[MQTT] ${stage}: ${describeRackCommand(command)} | ${buildCommandRequest(command).body}`,
+    { commandId: command.commandId, ...details },
+  );
+}
 
 function checkedTime(value) {
   return typeof value === "string" && Number.isFinite(Date.parse(value))
@@ -139,6 +147,11 @@ export function useMqttController() {
           failed = true;
           ++statusVersion.current;
           const cancelledCount = queue.current.length;
+          for (const queued of queue.current) {
+            logCommand("Cancelled", queued.command, "warn", {
+              code: "PREVIOUS_COMMAND_FAILED", delivery: "not-sent",
+            });
+          }
           queue.current = [];
           const canRetry = delivery === "not-sent"
             && !NON_RETRYABLE_CODES.has(code)
@@ -148,6 +161,8 @@ export function useMqttController() {
           const cancellation = cancelledCount
             ? ` ${cancelledCount} later queued command${cancelledCount === 1 ? " was" : "s were"} cancelled. Select those options again after checking the connection.`
             : "";
+          logCommand(delivery === "unknown" ? "Delivery unknown" : "Not sent", item.command,
+            delivery === "unknown" ? "warn" : "error", { code, delivery, cancelledCount });
           setError({
             commandId: item.command.commandId,
             description: item.label,
@@ -181,12 +196,13 @@ export function useMqttController() {
         setPendingCount(queue.current.length + 1);
 
         try {
+          const request = buildCommandRequest(item.command);
+          logCommand("Sending API request", item.command);
           const response = await fetch("/api/mqtt/commands", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            ...request,
             credentials: "same-origin",
             cache: "no-store",
-            body: JSON.stringify(item.command),
             signal: controller.signal,
           });
           const result = await response.json();
@@ -195,6 +211,7 @@ export function useMqttController() {
           if (response.ok && result.ok === true && result.commandId === item.command.commandId
             && result.delivery === "broker-acknowledged") {
             // Broker receipt is not confirmation that Unreal applied the command.
+            logCommand("Broker acknowledged", item.command, "info", { delivery: result.delivery });
             setLastDelivery({ commandId: item.command.commandId, label: item.label, delivery: result.delivery });
             ++statusVersion.current;
             setConnectionStatus("connected");
@@ -241,11 +258,13 @@ export function useMqttController() {
     try {
       command = createRackCommand(fields);
     } catch {
+      console.warn("[MQTT] Not queued: invalid configuration command.");
       setError({ message: "This configuration command is invalid.", code: "INVALID_COMMAND", delivery: "not-sent", canRetry: false });
       return null;
     }
 
     if (queue.current.length + (active.current ? 1 : 0) >= QUEUE_LIMIT) {
+      logCommand("Not queued", command, "warn", { code: "COMMAND_QUEUE_FULL", delivery: "not-sent" });
       setError({
         commandId: command.commandId,
         description: describeRackCommand(command),
@@ -259,6 +278,7 @@ export function useMqttController() {
 
     setError(null);
     queue.current.push({ command, label: describeRackCommand(command), intent, enqueuedAt: Date.now() });
+    logCommand("Click queued", command);
     setPendingCount(queue.current.length + (active.current ? 1 : 0));
     void drain();
     return command.commandId;
@@ -272,6 +292,7 @@ export function useMqttController() {
     setError(null);
     // An explicit retry refreshes its queue age but preserves its deduplication ID.
     queue.current.push({ ...item, enqueuedAt: Date.now() });
+    logCommand("Retry queued", item.command);
     setPendingCount(1);
     void drain();
     return item.command.commandId;

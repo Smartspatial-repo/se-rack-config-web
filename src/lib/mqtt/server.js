@@ -25,7 +25,7 @@ function readConfig() {
   const rawUrl = process.env.MQTT_URL?.trim();
   const topic = process.env.MQTT_COMMAND_TOPIC?.trim();
   const screenId = process.env.MQTT_SCREEN_ID?.trim() || "screen-01";
-  const format = process.env.MQTT_PAYLOAD_FORMAT?.trim() || "envelope";
+  const format = process.env.MQTT_PAYLOAD_FORMAT?.trim() || "location";
   if (!rawUrl || !topic) return { enabled, configured: false };
   try {
     const url = new URL(rawUrl);
@@ -33,7 +33,7 @@ function readConfig() {
     if (url.username || url.password || url.hash) throw new Error();
     if (/[+#\0]/.test(topic) || Buffer.byteLength(topic) > 1024) throw new Error();
     if (screenId.length > 128 || screenId.includes("\0")) throw new Error();
-    if (!["envelope", "flat"].includes(format)) throw new Error();
+    if (!["location", "envelope", "flat"].includes(format)) throw new Error();
     return {
       enabled,
       configured: true,

@@ -1,4 +1,4 @@
-import { parseRackCommand } from "@/lib/mqtt/commands";
+import { parseCommandRequest } from "@/lib/mqtt/commands";
 import { checkRequestOrigin, jsonResponse, MqttHttpError, readCommandBody } from "@/lib/mqtt/http";
 import { MqttBridgeError, publishRackCommand } from "@/lib/mqtt/server";
 
@@ -9,9 +9,11 @@ export async function POST(request) {
     const body = await readCommandBody(request);
     let command;
     try {
-      command = parseRackCommand(body);
+      command = parseCommandRequest(body, {
+        commandId: request.headers.get("x-command-id") ?? undefined,
+      });
     } catch {
-      return jsonResponse({ ok: false, code: "INVALID_COMMAND", message: "The command type or values are invalid.", delivery: "not-sent" }, 400);
+      return jsonResponse({ ok: false, code: "INVALID_COMMAND", message: "The location ID or command values are invalid.", delivery: "not-sent" }, 400);
     }
     return jsonResponse(await publishRackCommand(command, { signal: request.signal }));
   } catch (error) {
