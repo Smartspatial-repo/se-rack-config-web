@@ -18,27 +18,23 @@ export const MqttConnectionPanel = memo(function MqttConnectionPanel({
   onRetry,
 }) {
   const sending = pendingCount > 0;
-  const busy = sending || isChecking;
   const ready = connectionStatus === "connected";
+  const busy = isChecking && !ready;
   const accent = busy ? "primary" : ready ? "secondary" : "warning";
-  const title = sending
-    ? "Connecting & sending"
-    : isChecking
-      ? "Checking MQTT connection"
+  const title = busy
+      ? "Connecting to your rack"
       : ready
-        ? "Connection verified"
+        ? "Connected"
         : connectionStatus === "unconfigured"
           ? "MQTT setup required"
           : connectionStatus === "disabled"
             ? "MQTT publishing is disabled"
             : "MQTT connection unavailable";
 
-  const description = sending
-    ? "Verifying the broker connection and waiting for message acknowledgement."
-    : isChecking
-      ? "Checking your broker. Controls will be ready when the check completes."
+  const description = busy
+      ? connectionMessage || "Establishing the connection. Controls will be ready shortly."
       : ready
-        ? "Ready to send commands."
+        ? "Choose an option. Your controls stay ready for the next selection."
         : connectionMessage || "Check your connection and try again.";
 
   return (
@@ -109,11 +105,11 @@ export const MqttConnectionPanel = memo(function MqttConnectionPanel({
             startIcon={<RotateCw size={15} aria-hidden="true" />}
             sx={{ minHeight: 36, color: "text.primary", borderColor: "divider" }}
           >
-            Check connection
+            Reconnect
           </Button>
         ) : (
           <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {sending ? `${pendingCount} pending` : isChecking ? "Please wait…" : checkedAt ? "Broker check passed" : "Ready"}
+            {busy ? "Please wait…" : sending ? `${pendingCount} awaiting confirmation` : checkedAt ? "Live connection" : "Ready"}
           </Typography>
         )}
       </Stack>

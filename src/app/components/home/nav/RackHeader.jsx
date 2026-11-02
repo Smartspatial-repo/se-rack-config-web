@@ -10,8 +10,8 @@ import { alpha } from "@mui/material/styles";
 
 const connectionLabels = {
   preview: "UI preview",
-  connecting: "Checking MQTT",
-  connected: "MQTT verified",
+  connecting: "Connecting MQTT",
+  connected: "MQTT connected",
   disconnected: "MQTT unavailable",
   unconfigured: "MQTT setup required",
   disabled: "MQTT disabled",
