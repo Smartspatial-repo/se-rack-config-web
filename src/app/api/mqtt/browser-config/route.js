@@ -26,15 +26,26 @@ export async function GET(request) {
     return respond(getBrowserMqttConfig());
   } catch (error) {
     if (error instanceof MqttHttpError) {
-      return respond({
-        configured: false, enabled: false, state: "disabled",
-        code: error.code, message: error.message,
-      }, error.status);
+      return respond(
+        {
+          configured: false,
+          enabled: false,
+          state: "disabled",
+          code: error.code,
+          message: error.message,
+        },
+        error.status,
+      );
     }
-    return respond({
-      configured: false, enabled: false, state: "unconfigured",
-      code: "MQTT_BROWSER_CONFIG_FAILED",
-      message: "Browser MQTT settings could not be loaded.",
-    }, 500);
+    return respond(
+      {
+        configured: false,
+        enabled: false,
+        state: "unconfigured",
+        code: "MQTT_BROWSER_CONFIG_FAILED",
+        message: "Browser MQTT settings could not be loaded.",
+      },
+      500,
+    );
   }
 }
