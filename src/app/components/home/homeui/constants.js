@@ -1,5 +1,6 @@
 export const DEFAULT_SHARED_CONTROLS = {
   rackView: "back",
+  rackHidden: false,
   rpdu: false,
   manifolds: false,
   heatExchanger: false,

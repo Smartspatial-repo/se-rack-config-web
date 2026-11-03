@@ -48,6 +48,11 @@ function commandKey(command) {
       fields = ["view"];
       values = [oneOf(command.view, ["back", "front"], "rack view")];
       break;
+    case "rack.visibility.set":
+      fields = ["hidden"];
+      if (typeof command.hidden !== "boolean") invalid("Rack hidden must be a boolean.");
+      values = [command.hidden];
+      break;
     case "accessory.set":
       fields = ["accessory", "enabled"];
       if (typeof command.enabled !== "boolean") invalid("Accessory enabled must be a boolean.");
@@ -88,6 +93,8 @@ const options = [
   option(11, "Heat exchanger on", { type: "accessory.set", accessory: "heatExchanger", enabled: true }),
   option(12, "Heat exchanger off", { type: "accessory.set", accessory: "heatExchanger", enabled: false }),
   option(13, "Close slot selection", { type: "advanced-sx.slot.focus", slotId: null }),
+  option(14, "Hide rack", { type: "rack.visibility.set", hidden: true }),
+  option(15, "Unhide rack", { type: "rack.visibility.set", hidden: false }),
 ];
 
 // Row-major order: A1, B1, C1, D1, A2 ... D6. Do not reorder without updating Unreal.
