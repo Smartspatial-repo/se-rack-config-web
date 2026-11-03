@@ -54,7 +54,7 @@ export const RackViewControls = memo(function RackViewControls({
   return (
     <Box
       component="section"
-      aria-label="Rack view and visibility"
+      aria-label="Rack view and UI visibility"
       sx={(theme) => ({
         display: "grid",
         gridTemplateColumns: {
@@ -114,7 +114,7 @@ export const RackViewControls = memo(function RackViewControls({
             component="h2"
             variant="subheading"
           >
-            Rack visibility
+            UI visibility
           </Typography>
         </Stack>
         <ToggleButtonGroup

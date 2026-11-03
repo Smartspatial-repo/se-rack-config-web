@@ -8,7 +8,7 @@ export const DEFAULT_SHARED_CONTROLS = {
 
 export const MGX_SYSTEMS = [
   { id: "gb300", label: "GB300" },
-  { id: "vera-rubin", label: "Vera Rubin" },
+  { id: "vr-200", label: "Vera 200" },
 ];
 
 export const EQUIPMENT_OPTIONS = [
