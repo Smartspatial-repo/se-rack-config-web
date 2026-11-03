@@ -22,20 +22,21 @@ export const MqttConnectionPanel = memo(function MqttConnectionPanel({
   const busy = isChecking && !ready;
   const accent = busy ? "primary" : ready ? "secondary" : "warning";
   const title = busy
-      ? "Connecting to your rack"
-      : ready
-        ? "Connected"
-        : connectionStatus === "unconfigured"
-          ? "MQTT setup required"
-          : connectionStatus === "disabled"
-            ? "MQTT publishing is disabled"
-            : "MQTT connection unavailable";
+    ? "Connecting to your rack"
+    : ready
+      ? "Connected"
+      : connectionStatus === "unconfigured"
+        ? "MQTT setup required"
+        : connectionStatus === "disabled"
+          ? "MQTT publishing is disabled"
+          : "MQTT connection unavailable";
 
   const description = busy
-      ? connectionMessage || "Establishing the connection. Controls will be ready shortly."
-      : ready
-        ? "Choose an option. Your controls stay ready for the next selection."
-        : connectionMessage || "Check your connection and try again.";
+    ? connectionMessage ||
+      "Establishing the connection. Controls will be ready shortly."
+    : ready
+      ? "Choose an option. Your controls stay ready for the next selection."
+      : connectionMessage || "Check your connection and try again.";
 
   return (
     <Box
@@ -84,32 +85,70 @@ export const MqttConnectionPanel = memo(function MqttConnectionPanel({
               },
             }}
           />
-        ) : ready ? <Check size={21} strokeWidth={1.75} /> : <WifiOff size={20} strokeWidth={1.5} />}
+        ) : ready ? (
+          <Check size={21} strokeWidth={1.75} />
+        ) : (
+          <WifiOff size={20} strokeWidth={1.5} />
+        )}
       </Box>
 
-      <Box role="status" aria-live="polite" aria-atomic="true" sx={{ flex: 1, minWidth: 160 }}>
-        <Typography component="p" variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+      <Box
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        sx={{ flex: 1, minWidth: 160 }}
+      >
+        <Typography
+          component="p"
+          variant="body2"
+          sx={{ fontWeight: 600, mb: 0.5 }}
+        >
           {title}
         </Typography>
-        <Typography component="p" variant="caption" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+        <Typography
+          component="p"
+          variant="caption"
+          color="text.secondary"
+          sx={{ lineHeight: 1.6 }}
+        >
           {description}
         </Typography>
       </Box>
 
-      <Stack sx={{ flexShrink: 0, width: { xs: "100%", sm: "auto" }, alignItems: { xs: "flex-start", sm: "flex-end" } }}>
+      <Stack
+        sx={{
+          flexShrink: 0,
+          width: { xs: "100%", sm: "auto" },
+          alignItems: { xs: "flex-start", sm: "flex-end" },
+        }}
+      >
         {!busy && !ready ? (
           <Button
             size="small"
             variant="outlined"
             onClick={onRetry}
             startIcon={<RotateCw size={15} aria-hidden="true" />}
-            sx={{ minHeight: 36, color: "text.primary", borderColor: "divider" }}
+            sx={{
+              minHeight: 36,
+              color: "text.primary",
+              borderColor: "divider",
+            }}
           >
             Reconnect
           </Button>
         ) : (
-          <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {busy ? "Please wait…" : sending ? `${pendingCount} awaiting confirmation` : checkedAt ? "Live connection" : "Ready"}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {busy
+              ? "Please wait…"
+              : sending
+                ? `${pendingCount} awaiting confirmation`
+                : checkedAt
+                  ? "Live connection"
+                  : "Ready"}
           </Typography>
         )}
       </Stack>

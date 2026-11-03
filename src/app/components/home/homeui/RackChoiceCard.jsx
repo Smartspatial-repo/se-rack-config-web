@@ -43,7 +43,9 @@ export const RackChoiceCard = memo(function RackChoiceCard({
         "&:hover": {
           borderColor: selected ? "secondary.main" : "primary.dark",
           backgroundColor: alpha(
-            selected ? theme.palette.secondary.main : theme.palette.primary.main,
+            selected
+              ? theme.palette.secondary.main
+              : theme.palette.primary.main,
             selected ? 0.14 : 0.055,
           ),
         },
