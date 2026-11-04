@@ -23,15 +23,12 @@ const segmentStyles = (theme) => ({
     textTransform: "none",
     color: "text.secondary",
     borderColor: "divider",
-    transition: theme.transitions.create(
-      ["background-color", "border-color", "color"],
-      { duration: 120 },
-    ),
+    transition: theme.transitions.create(["background-color", "border-color", "color"], { duration: 120 }),
     "&.Mui-selected": {
       zIndex: 1,
       borderColor: "primary.main",
       color: "primary.main",
-      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+      backgroundColor: alpha(theme.palette.primary.main, 0.10),
       "&:hover": { backgroundColor: alpha(theme.palette.primary.main, 0.16) },
     },
     "&.Mui-focusVisible": {
@@ -43,13 +40,9 @@ const segmentStyles = (theme) => ({
   },
 });
 
-export const RackViewControls = memo(function RackViewControls({
-  value,
-  onChange,
-}) {
+export const RackViewControls = memo(function RackViewControls({ value, onChange }) {
   const id = useId();
-  const setControl = (key, next) =>
-    onChange({ ...value, [key]: next }, { key, value: next });
+  const setControl = (key, next) => onChange({ ...value, [key]: next }, { key, value: next });
 
   return (
     <Box
@@ -57,10 +50,7 @@ export const RackViewControls = memo(function RackViewControls({
       aria-label="Rack view and UI visibility"
       sx={(theme) => ({
         display: "grid",
-        gridTemplateColumns: {
-          xs: "minmax(0, 1fr)",
-          sm: "repeat(2, minmax(0, 1fr))",
-        },
+        gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" },
         gap: { xs: 3, sm: 4 },
         minWidth: 0,
         p: { xs: 2.5, md: 3 },
@@ -71,71 +61,27 @@ export const RackViewControls = memo(function RackViewControls({
       })}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Stack
-          direction="row"
-          spacing={1.25}
-          sx={{ alignItems: "center", mb: 1.5 }}
-        >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 1.5 }}>
           <Monitor size={19} strokeWidth={1.75} aria-hidden="true" />
-          <Typography id={`${id}-view`} component="h2" variant="subheading">
-            Rack view
-          </Typography>
+          <Typography id={`${id}-view`} component="h2" variant="subheading">Rack view</Typography>
         </Stack>
-        <ToggleButtonGroup
-          exclusive
-          value={value.rackView}
-          aria-labelledby={`${id}-view`}
-          sx={segmentStyles}
-        >
-          <ToggleButton
-            value="back"
-            onClick={() => setControl("rackView", "back")}
-          >
-            Back view
-          </ToggleButton>
-          <ToggleButton
-            value="front"
-            onClick={() => setControl("rackView", "front")}
-          >
-            Front view
-          </ToggleButton>
+        <ToggleButtonGroup exclusive value={value.rackView} aria-labelledby={`${id}-view`} sx={segmentStyles}>
+          <ToggleButton value="back" onClick={() => setControl("rackView", "back")}>Back view</ToggleButton>
+          <ToggleButton value="front" onClick={() => setControl("rackView", "front")}>Front view</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 
       <Box sx={{ minWidth: 0 }}>
-        <Stack
-          direction="row"
-          spacing={1.25}
-          sx={{ alignItems: "center", mb: 1.5 }}
-        >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 1.5 }}>
           <Eye size={19} strokeWidth={1.75} aria-hidden="true" />
-          <Typography
-            id={`${id}-visibility`}
-            component="h2"
-            variant="subheading"
-          >
-            UI visibility
-          </Typography>
+          <Typography id={`${id}-visibility`} component="h2" variant="subheading">UI visibility</Typography>
         </Stack>
-        <ToggleButtonGroup
-          exclusive
-          value={value.rackHidden ? "hidden" : "visible"}
-          aria-labelledby={`${id}-visibility`}
-          sx={segmentStyles}
-        >
-          <ToggleButton
-            value="hidden"
-            onClick={() => setControl("rackHidden", true)}
-          >
-            <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />
-            Hide
+        <ToggleButtonGroup exclusive value={value.rackHidden ? "hidden" : "visible"} aria-labelledby={`${id}-visibility`} sx={segmentStyles}>
+          <ToggleButton value="hidden" onClick={() => setControl("rackHidden", true)}>
+            <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />Hide
           </ToggleButton>
-          <ToggleButton
-            value="visible"
-            onClick={() => setControl("rackHidden", false)}
-          >
-            <Eye size={18} strokeWidth={1.75} aria-hidden="true" />
-            Unhide
+          <ToggleButton value="visible" onClick={() => setControl("rackHidden", false)}>
+            <Eye size={18} strokeWidth={1.75} aria-hidden="true" />Unhide
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>

@@ -30,6 +30,7 @@ export function useMqttController() {
   const attempts = useRef(new Map());
   const latestCommandId = useRef(null);
   const retryable = useRef(null);
+  const lastCameraLog = useRef(-Infinity);
 
   const reportCommandError = useCallback((event) => {
     if (!mounted.current) return;
@@ -121,6 +122,7 @@ export function useMqttController() {
           setIsChecking(state.state === "connecting");
           setConnectionMessage(state.message);
           if (state.state === "connected") {
+            lastCameraLog.current = -Infinity;
             setCheckedAt(new Date().toISOString());
             console.info("[MQTT] Connected over WebSocket. Ready for commands.");
           } else if (state.state === "disconnected") {
@@ -137,6 +139,14 @@ export function useMqttController() {
           setLastDelivery({ ...delivery, label: describeRackCommand(command) });
         },
         onError: (event) => { if (isCurrent()) reportCommandError(event); },
+        onCameraPublish: (payload) => {
+          if (!isCurrent()) return;
+          const now = Date.now();
+          if (payload.phase === "end" || now - lastCameraLog.current >= 1000) {
+            lastCameraLog.current = now;
+            console.info("[MQTT] Camera handed to transport (QoS 0; no application acknowledgement) | " + JSON.stringify(payload));
+          }
+        },
       });
       transport.current = client;
       client.start(result.config);
@@ -196,6 +206,13 @@ export function useMqttController() {
     return sendCommand(command, "Retry requested");
   }, [sendCommand]);
 
+  // A ref-only fast path: animation frames do not re-render the page or update
+  // discrete-command ACK state. The transport coalesces and rate-limits poses.
+  const publishCamera = useCallback((snapshot, options) => {
+    if (!mounted.current) return false;
+    return transport.current?.publishCamera(snapshot, options) ?? false;
+  }, []);
+
   const clearError = useCallback(() => {
     retryable.current = null;
     if (mounted.current) setError(null);
@@ -222,7 +239,7 @@ export function useMqttController() {
   return {
     connectionStatus, isChecking, checkedAt, connectionMessage,
     pendingCount, lastDelivery, error,
-    publishCommand, retryLastCommand, clearError, checkConnection,
+    publishCommand, publishCamera, retryLastCommand, clearError, checkConnection,
   };
 }
 
