@@ -110,7 +110,7 @@ const RackControlsArea = memo(function RackControlsArea({
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 2, md: 2.5 }, mt: { xs: 3, md: 4 } }}>
           <RackChoiceCard title="MGX" description="Choose GB300 or Vera Rubin." icon={MGX_ICON} selected={selectedRack === "mgx"} panelId="rack-options" onClick={selectMGX} />
-          <RackChoiceCard title="Advanced SX" description="Configure equipment across 24 slots." icon={ADVANCED_SX_ICON} selected={selectedRack === "advanced-sx"} panelId="rack-options" onClick={selectAdvancedSX} />
+          <RackChoiceCard title="Advanced SX" description="Configure equipment across 48 rack slots." icon={ADVANCED_SX_ICON} selected={selectedRack === "advanced-sx"} panelId="rack-options" onClick={selectAdvancedSX} />
         </Box>
       </Box>
 

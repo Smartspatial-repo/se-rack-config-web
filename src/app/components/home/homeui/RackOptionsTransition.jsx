@@ -8,11 +8,7 @@ const RACKS = ["mgx", "advanced-sx"];
 const DURATION = 140;
 
 /** Let the active panel size the document; crossfade without an inner scroller. */
-export const RackOptionsTransition = memo(function RackOptionsTransition({
-  activeRack,
-  mgx,
-  advancedSX,
-}) {
+export const RackOptionsTransition = memo(function RackOptionsTransition({ activeRack, mgx, advancedSX }) {
   const validRack = RACKS.includes(activeRack) ? activeRack : null;
   const [lastSelectedRack, setLastSelectedRack] = useState(validRack);
   const displayedRack = validRack ?? lastSelectedRack;
@@ -36,16 +32,7 @@ export const RackOptionsTransition = memo(function RackOptionsTransition({
       }}
     >
       {!displayedRack && (
-        <Box
-          sx={{
-            minHeight: 128,
-            display: "grid",
-            placeContent: "center",
-            textAlign: "center",
-            px: 3,
-            py: 2,
-          }}
-        >
+        <Box sx={{ minHeight: 128, display: "grid", placeContent: "center", textAlign: "center", px: 3, py: 2 }}>
           <Typography component="p" variant="subheading">
             Select a rack to configure
           </Typography>
@@ -71,7 +58,8 @@ export const RackOptionsTransition = memo(function RackOptionsTransition({
               width: "100%",
               minWidth: 0,
               boxSizing: "border-box",
-              p: 1,
+              // Match Advanced SX's two column edges to the rack-choice cards.
+              p: rack === "advanced-sx" ? 0 : 1,
               overflow: "visible",
               opacity: active ? 1 : 0,
               visibility: active ? "visible" : "hidden",

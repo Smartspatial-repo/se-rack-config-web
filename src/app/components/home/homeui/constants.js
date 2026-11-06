@@ -8,7 +8,7 @@ export const DEFAULT_SHARED_CONTROLS = {
 
 export const MGX_SYSTEMS = [
   { id: "gb300", label: "GB300" },
-  { id: "vr-200", label: "Vera 200" },
+  { id: "vera-rubin", label: "Vera Rubin" },
 ];
 
 export const EQUIPMENT_OPTIONS = [
@@ -17,6 +17,8 @@ export const EQUIPMENT_OPTIONS = [
   { id: "ocp-powershell", label: "OCP PowerShell" },
 ];
 
-export const SLOT_IDS = Array.from({ length: 6 }, (_, row) =>
+// Stable MQTT slot identities: append new rows; never renumber existing slots.
+// The rack displays index + 1 as U01–U48, with U48 at the top.
+export const SLOT_IDS = Array.from({ length: 12 }, (_, row) =>
   ["A", "B", "C", "D"].map((column) => `${column}${row + 1}`),
 ).flat();
