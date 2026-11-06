@@ -53,6 +53,14 @@ const RackControlsArea = memo(function RackControlsArea({
     onControlsChange?.(next, change);
   }, [controls, onControlsChange]);
 
+  const handleResetView = useCallback(() => {
+    if (controlsDisabled) return;
+    handleControlsChange(
+      { ...(controls ?? localControls), rackView: "front" },
+      { key: "rackView", value: "front" },
+    );
+  }, [controls, localControls, controlsDisabled, handleControlsChange]);
+
   const handleSystemSelect = useCallback((system) => {
     setSelectedSystem(system);
     onSystemSelect?.(system);
@@ -114,7 +122,7 @@ const RackControlsArea = memo(function RackControlsArea({
         <MemoSharedControls value={controls ?? localControls} onChange={handleControlsChange} selectedRack={selectedRack} />
       </Box>
       <Box sx={{ mt: 3 }}>
-        <RackOrbitPanel onCameraChange={onCameraChange} disabled={controlsDisabled} />
+        <RackOrbitPanel onCameraChange={onCameraChange} onReset={handleResetView} disabled={controlsDisabled} />
       </Box>
     </>
   );

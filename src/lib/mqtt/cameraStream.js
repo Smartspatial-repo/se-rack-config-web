@@ -156,11 +156,17 @@ export function createCameraStream({
     return true;
   }
 
-  function stop() {
-    disposed = true;
+  function cancelPending() {
+    // A discrete view/reset command supersedes poses not handed to MQTT yet.
+    // Keep the active write and sequence intact so a later drag can resume.
     latest = null;
     cancelTimer();
   }
 
-  return { publish, stop };
+  function stop() {
+    disposed = true;
+    cancelPending();
+  }
+
+  return { publish, cancelPending, stop };
 }

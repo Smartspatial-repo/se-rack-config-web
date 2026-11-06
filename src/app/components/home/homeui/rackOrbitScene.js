@@ -5,13 +5,15 @@ const MIN_DISTANCE = 3;
 const MAX_DISTANCE = 12;
 const MIN_POLAR = 0.2;
 const MAX_POLAR = Math.PI / 2 + 0.18;
+const INITIAL_POSITION = { x: 3.2, y: 2.1, z: 4.4 };
+const INITIAL_FOV = 40;
 
 // This helper is loaded by the client component after mount. One preview unit
 // represents one metre; the MQTT layer maps these vectors to Unreal centimetres.
 export function createRackOrbitScene(element, { onCameraChange, onFatalError }) {
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
-  camera.position.set(3.2, 2.1, 4.4);
+  const camera = new THREE.PerspectiveCamera(INITIAL_FOV, 1, 0.1, 40);
+  camera.position.set(INITIAL_POSITION.x, INITIAL_POSITION.y, INITIAL_POSITION.z);
   const framePosition = new THREE.Vector3();
   const frameTarget = new THREE.Vector3();
   const frameQuaternion = new THREE.Quaternion();
@@ -189,6 +191,30 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     userChanged = false;
     dirty = false;
     clearDamping();
+  }
+
+  // Reset is a local preview operation. The caller sends the existing Front
+  // view command; no camera.orbit sample (including a final sample) is emitted.
+  function reset() {
+    if (!available() || !controls) return false;
+    cancelInteraction();
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    controls.disconnect();
+    controlsConnected = false;
+
+    suppressChanges = true;
+    camera.position.set(INITIAL_POSITION.x, INITIAL_POSITION.y, INITIAL_POSITION.z);
+    controls.target.set(0, 0, 0);
+    camera.fov = INITIAL_FOV;
+    camera.zoom = 1;
+    camera.updateProjectionMatrix();
+    controls.update();
+    suppressChanges = false;
+
+    syncControls();
+    invalidate();
+    return true;
   }
 
   function setDisabled(value) {
@@ -369,7 +395,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
       window.addEventListener("resize", resize);
     }
     resize();
-    return { zoom, setDisabled, dispose };
+    return { zoom, reset, setDisabled, dispose };
   } catch (error) {
     dispose();
     throw error;

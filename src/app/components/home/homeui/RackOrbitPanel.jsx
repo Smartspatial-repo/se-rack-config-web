@@ -10,16 +10,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import {
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp,
-  Hand,
-  Minus,
-  MousePointer2,
-  Move3D,
-  Plus,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleHelp, Hand, Minus, MousePointer2, Move3D, Plus, RotateCcw } from "lucide-react";
 import { alpha } from "@mui/material/styles";
 
 // Dismiss once per page load. A full refresh starts a new module instance,
@@ -33,48 +24,17 @@ function DragGesture() {
   return (
     <Box
       aria-hidden="true"
-      sx={{
-        position: "relative",
-        width: 120,
-        maxWidth: "100%",
-        height: 64,
-        pointerEvents: "none",
-      }}
+      sx={{ position: "relative", width: 120, maxWidth: "100%", height: 64, pointerEvents: "none" }}
     >
-      <Box
-        sx={{
-          position: "absolute",
-          left: 19,
-          right: 19,
-          top: 13,
-          borderTop: "1px dashed",
-          borderColor: "primary.dark",
-          opacity: 0.65,
-        }}
-      />
-      <Box
-        component={ChevronLeft}
-        size={18}
-        strokeWidth={1.6}
-        sx={{ position: "absolute", left: 0, top: 4, color: "primary.main" }}
-      />
-      <Box
-        component={ChevronRight}
-        size={18}
-        strokeWidth={1.6}
-        sx={{ position: "absolute", right: 0, top: 4, color: "primary.main" }}
-      />
+      <Box sx={{ position: "absolute", left: 19, right: 19, top: 13, borderTop: "1px dashed", borderColor: "primary.dark", opacity: 0.65 }} />
+      <Box component={ChevronLeft} size={18} strokeWidth={1.6} sx={{ position: "absolute", left: 0, top: 4, color: "primary.main" }} />
+      <Box component={ChevronRight} size={18} strokeWidth={1.6} sx={{ position: "absolute", right: 0, top: 4, color: "primary.main" }} />
 
       <Box
         sx={{
-          position: "absolute",
-          left: "calc(50% - 16px)",
-          top: 24,
-          width: 32,
-          height: 36,
-          color: "primary.light",
-          animation:
-            "orbit-guide-pointer-drag 3s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+          position: "absolute", left: "calc(50% - 16px)", top: 24,
+          width: 32, height: 36, color: "primary.light",
+          animation: "orbit-guide-pointer-drag 3s cubic-bezier(0.4, 0, 0.2, 1) infinite",
           "@keyframes orbit-guide-pointer-drag": {
             "0%, 12%, 100%": { transform: "translateX(-18px) scale(1)" },
             "22%": { transform: "translateX(-18px) scale(0.94)" },
@@ -86,16 +46,9 @@ function DragGesture() {
       >
         <Box
           sx={{
-            position: "absolute",
-            left: -3,
-            top: -3,
-            width: 18,
-            height: 18,
-            border: "1px solid",
-            borderColor: "primary.main",
-            borderRadius: "50%",
-            bgcolor: "action.hover",
-            opacity: 0,
+            position: "absolute", left: -3, top: -3, width: 18, height: 18,
+            border: "1px solid", borderColor: "primary.main", borderRadius: "50%",
+            bgcolor: "action.hover", opacity: 0,
             animation: "orbit-guide-pointer-press 3s ease-out infinite",
             "@keyframes orbit-guide-pointer-press": {
               "0%, 12%, 40%, 100%": { opacity: 0, transform: "scale(0.65)" },
@@ -106,37 +59,14 @@ function DragGesture() {
             "@media (prefers-reduced-motion: reduce)": { animation: "none" },
           }}
         />
-        <Box
-          component={MousePointer2}
-          size={30}
-          strokeWidth={1.6}
-          sx={(theme) => ({
-            position: "relative",
-            display: "block",
-            fill: theme.palette.background.default,
-            [TOUCH_INPUT]: { display: "none" },
-          })}
-        />
-        <Box
-          component={Hand}
-          size={30}
-          strokeWidth={1.6}
-          sx={(theme) => ({
-            position: "relative",
-            display: "none",
-            fill: theme.palette.background.default,
-            [TOUCH_INPUT]: { display: "block" },
-          })}
-        />
+        <Box component={MousePointer2} size={30} strokeWidth={1.6} sx={(theme) => ({ position: "relative", display: "block", fill: theme.palette.background.default, [TOUCH_INPUT]: { display: "none" } })} />
+        <Box component={Hand} size={30} strokeWidth={1.6} sx={(theme) => ({ position: "relative", display: "none", fill: theme.palette.background.default, [TOUCH_INPUT]: { display: "block" } })} />
       </Box>
     </Box>
   );
 }
 
-export const RackOrbitPanel = memo(function RackOrbitPanel({
-  onCameraChange,
-  disabled = false,
-}) {
+export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onReset, disabled = false }) {
   const id = useId();
   const viewport = useRef(null);
   const scene = useRef(null);
@@ -167,19 +97,12 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
       setEntered(true);
       return;
     }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (
-          entries.some(
-            (entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35,
-          )
-        ) {
-          setEntered(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.35 },
-    );
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35)) {
+        setEntered(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0.35 });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -207,31 +130,22 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
   useEffect(() => {
     let cancelled = false;
     let instance;
-    import("./rackOrbitScene")
-      .then(({ createRackOrbitScene }) => {
-        if (cancelled || !viewport.current) return;
-        instance = createRackOrbitScene(viewport.current, {
-          onCameraChange: (value, options) => {
-            if (!cancelled && !isDisabled.current)
-              callback.current?.(value, options);
-          },
-          onFatalError: (message) => {
-            if (!cancelled) {
-              setReady(false);
-              setError(message);
-            }
-          },
-        });
-        instance.setDisabled(isDisabled.current);
-        scene.current = instance;
-        setReady(true);
-      })
-      .catch(() => {
-        if (!cancelled)
-          setError(
-            "The 3D preview could not load. Enable WebGL or try another browser.",
-          );
+    import("./rackOrbitScene").then(({ createRackOrbitScene }) => {
+      if (cancelled || !viewport.current) return;
+      instance = createRackOrbitScene(viewport.current, {
+        onCameraChange: (value, options) => {
+          if (!cancelled && !isDisabled.current) callback.current?.(value, options);
+        },
+        onFatalError: (message) => {
+          if (!cancelled) { setReady(false); setError(message); }
+        },
       });
+      instance.setDisabled(isDisabled.current);
+      scene.current = instance;
+      setReady(true);
+    }).catch(() => {
+      if (!cancelled) setError("The 3D preview could not load. Enable WebGL or try another browser.");
+    });
     return () => {
       cancelled = true;
       instance?.dispose();
@@ -239,9 +153,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
     };
   }, []);
 
-  useEffect(() => {
-    scene.current?.setDisabled(controlsDisabled);
-  }, [controlsDisabled]);
+  useEffect(() => { scene.current?.setDisabled(controlsDisabled); }, [controlsDisabled]);
   useEffect(() => {
     if (guideState === "open" && focusGuide.current) {
       focusGuide.current = false;
@@ -249,11 +161,17 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
     }
     if (guideState === "done" && restorePreviewFocus.current) {
       restorePreviewFocus.current = false;
-      if (!disabled && ready && !error)
-        viewport.current?.focus({ preventScroll: true });
+      if (!disabled && ready && !error) viewport.current?.focus({ preventScroll: true });
     }
   }, [guideState, disabled, ready, error]);
   const inactive = controlsDisabled || !ready || Boolean(error);
+
+  const handleReset = () => {
+    if (inactive || isDisabled.current) return;
+    // reset() is silent: no camera.orbit samples can override Front view.
+    if (scene.current?.reset() !== true) return;
+    onReset?.();
+  };
 
   return (
     <Box
@@ -268,22 +186,14 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
       }}
       sx={{ minWidth: 0 }}
     >
-      <Stack
-        direction="row"
-        spacing={1.25}
-        sx={{ alignItems: "center", mb: 1 }}
-      >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 1 }}>
         <Move3D size={19} strokeWidth={1.75} aria-hidden="true" />
-        <Typography id={`${id}-title`} component="h2" variant="subheading">
-          Rotate &amp; zoom
-        </Typography>
+        <Typography id={`${id}-title`} component="h2" variant="subheading">Rotate &amp; zoom</Typography>
         <Tooltip title="Show controls guide">
           <span>
             <IconButton
               aria-label="Show rotate and zoom guide"
-              disabled={
-                disabled || !ready || Boolean(error) || guideState !== "done"
-              }
+              disabled={disabled || !ready || Boolean(error) || guideState !== "done"}
               onClick={openGuide}
               size="small"
               sx={{ width: 36, height: 36, color: "text.secondary" }}
@@ -293,12 +203,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
           </span>
         </Tooltip>
       </Stack>
-      <Typography
-        id={`${id}-help`}
-        variant="body2"
-        color="text.secondary"
-        sx={{ mb: 2 }}
-      >
+      <Typography id={`${id}-help`} variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Drag to rotate the view. Use + and − to zoom.
       </Typography>
 
@@ -326,36 +231,16 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
           inert={guideBlocksControls ? true : undefined}
           tabIndex={inactive ? -1 : 0}
           sx={{
-            width: "100%",
-            height: "100%",
-            cursor: inactive ? "default" : "grab",
+            width: "100%", height: "100%", cursor: inactive ? "default" : "grab",
             "&:active": { cursor: inactive ? "default" : "grabbing" },
-            "&:focus-visible": {
-              outline: "2px solid",
-              outlineColor: "primary.main",
-              outlineOffset: -3,
-            },
+            "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: -3 },
           }}
         />
 
         {!ready && (
-          <Stack
-            role="status"
-            spacing={1.5}
-            sx={{
-              position: "absolute",
-              inset: 0,
-              alignItems: "center",
-              justifyContent: "center",
-              px: 3,
-              textAlign: "center",
-              pointerEvents: "none",
-            }}
-          >
+          <Stack role="status" spacing={1.5} sx={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", px: 3, textAlign: "center", pointerEvents: "none" }}>
             {!error && <CircularProgress size={22} thickness={3} />}
-            <Typography variant="caption" color="text.secondary">
-              {error || "Loading 3D preview…"}
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{error || "Loading 3D preview…"}</Typography>
           </Stack>
         )}
 
@@ -363,13 +248,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
           aria-hidden="true"
           variant="caption"
           color="text.secondary"
-          sx={{
-            position: "absolute",
-            left: 16,
-            bottom: 17,
-            pointerEvents: "none",
-            fontSize: "0.6875rem",
-          }}
+          sx={{ position: "absolute", left: 16, bottom: 17, pointerEvents: "none", fontSize: "0.6875rem", display: { xs: "none", sm: "block" } }}
         >
           {disabled ? "Connect to control" : "Drag to orbit"}
         </Typography>
@@ -380,42 +259,30 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
           direction="row"
           spacing={0.5}
           sx={(theme) => ({
-            position: "absolute",
-            right: 12,
-            bottom: 12,
-            p: 0.5,
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 1,
+            position: "absolute", right: 12, bottom: 12, p: 0.5,
+            border: "1px solid", borderColor: "divider", borderRadius: 1,
             bgcolor: alpha(theme.palette.background.default, 0.82),
             backdropFilter: "blur(10px)",
           })}
         >
+          <Tooltip title="Reset view">
+            <span>
+              <IconButton aria-label="Reset view" disabled={inactive} onClick={handleReset} sx={{ width: 44, height: 44, borderRadius: 0.75 }}>
+                <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Box aria-hidden="true" sx={{ height: 22, alignSelf: "center", borderRight: 1, borderColor: "divider", mx: 0.25 }} />
           <Tooltip title="Zoom out">
             <span>
-              <IconButton
-                aria-label="Zoom out"
-                disabled={inactive}
-                onClick={() => scene.current?.zoom(-1)}
-                sx={{ width: 44, height: 44, borderRadius: 0.75 }}
-              >
+              <IconButton aria-label="Zoom out" disabled={inactive} onClick={() => scene.current?.zoom(-1)} sx={{ width: 44, height: 44, borderRadius: 0.75 }}>
                 <Minus size={19} strokeWidth={1.75} aria-hidden="true" />
               </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="Zoom in">
             <span>
-              <IconButton
-                aria-label="Zoom in"
-                disabled={inactive}
-                onClick={() => scene.current?.zoom(1)}
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 0.75,
-                  color: "primary.light",
-                }}
-              >
+              <IconButton aria-label="Zoom in" disabled={inactive} onClick={() => scene.current?.zoom(1)} sx={{ width: 44, height: 44, borderRadius: 0.75, color: "primary.light" }}>
                 <Plus size={19} strokeWidth={1.75} aria-hidden="true" />
               </IconButton>
             </span>
@@ -427,103 +294,45 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
           timeout={reducedMotion ? 0 : 200}
           mountOnEnter
           unmountOnExit
-          onExited={() =>
-            setGuideState((state) => (state === "closing" ? "done" : state))
-          }
+          onExited={() => setGuideState((state) => state === "closing" ? "done" : state)}
         >
           <Box
             role="region"
             aria-labelledby={`${id}-guide-title`}
             sx={(theme) => ({
-              position: "absolute",
-              inset: 0,
-              zIndex: 3,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: { xs: 2, sm: 2.5 },
-              p: { xs: 2, sm: 3 },
-              borderRadius: "inherit",
-              textAlign: "center",
+              position: "absolute", inset: 0, zIndex: 3,
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              gap: { xs: 2, sm: 2.5 }, p: { xs: 2, sm: 3 },
+              borderRadius: "inherit", textAlign: "center",
               bgcolor: alpha(theme.palette.background.default, 0.94),
               backdropFilter: "blur(8px)",
               touchAction: "pan-y",
             })}
           >
-            <Typography
-              id={`${id}-guide-title`}
-              component="h3"
-              variant="subheading"
-            >
+            <Typography id={`${id}-guide-title`} component="h3" variant="subheading">
               Explore your rack
             </Typography>
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: { xs: 2, sm: 5 },
-                width: "100%",
-                maxWidth: 400,
-              }}
-            >
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: { xs: 2, sm: 5 }, width: "100%", maxWidth: 400 }}>
               <Stack spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
                 <DragGesture />
                 <Box sx={{ minHeight: 40 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{ fontWeight: 600, [TOUCH_INPUT]: { display: "none" } }}
-                  >
-                    Click &amp; drag
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      display: "none",
-                      fontWeight: 600,
-                      [TOUCH_INPUT]: { display: "block" },
-                    }}
-                  >
-                    Drag with one finger
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    to rotate the view
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, [TOUCH_INPUT]: { display: "none" } }}>Click &amp; drag</Typography>
+                  <Typography variant="body2" sx={{ display: "none", fontWeight: 600, [TOUCH_INPUT]: { display: "block" } }}>Drag with one finger</Typography>
+                  <Typography variant="caption" color="text.secondary">to rotate the view</Typography>
                 </Box>
               </Stack>
               <Stack spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  aria-hidden="true"
-                  sx={{ alignItems: "center", height: 64 }}
-                >
+                <Stack direction="row" spacing={0.75} aria-hidden="true" sx={{ alignItems: "center", height: 64 }}>
                   {[Minus, Plus].map((Icon, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        display: "grid",
-                        placeItems: "center",
-                        width: 36,
-                        height: 36,
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 1,
-                        bgcolor: "action.hover",
-                        color: "primary.light",
-                      }}
-                    >
+                    <Box key={index} sx={{ display: "grid", placeItems: "center", width: 36, height: 36, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover", color: "primary.light" }}>
                       <Icon size={19} strokeWidth={1.75} />
                     </Box>
                   ))}
                 </Stack>
                 <Box sx={{ minHeight: 40 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    − / +
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    to zoom out / in
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>− / +</Typography>
+                  <Typography variant="caption" color="text.secondary">to zoom out / in</Typography>
                 </Box>
               </Stack>
             </Box>
@@ -532,12 +341,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
               variant="contained"
               onClick={dismissGuide}
               disabled={guideState !== "open"}
-              sx={{
-                minHeight: 44,
-                minWidth: 132,
-                boxShadow: "none",
-                "&:hover": { boxShadow: "none" },
-              }}
+              sx={{ minHeight: 44, minWidth: 132, boxShadow: "none", "&:hover": { boxShadow: "none" } }}
             >
               Got it
             </Button>
@@ -551,8 +355,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({
         color="text.secondary"
         sx={{ mt: 1.25 }}
       >
-        Keyboard: focus the preview, then use arrow keys to rotate and + / − to
-        zoom.
+        Keyboard: focus the preview, then use arrow keys to rotate and + / − to zoom.
       </Typography>
     </Box>
   );
