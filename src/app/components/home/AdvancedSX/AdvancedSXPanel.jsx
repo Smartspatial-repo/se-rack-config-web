@@ -6,8 +6,9 @@ import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
+import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
-import { ArrowDownUp, Check, Network, Plug, Plus, Server, X } from "lucide-react";
+import { ArrowDownUp, Brackets, Check, Cpu, Network, Plug, Plus, Server, Snowflake, X } from "lucide-react";
 import { alpha } from "@mui/material/styles";
 import { EQUIPMENT_OPTIONS, SLOT_IDS } from "../homeui/constants";
 
@@ -15,10 +16,16 @@ const equipmentIcons = {
   "generic-server": Server,
   "generic-switch": Network,
   "ocp-powershell": Plug,
+  cpu: Cpu,
+  "cpu-upper": Cpu,
+  "rack-brace": Brackets,
+  cdu: Snowflake,
 };
-const equipmentLabels = Object.fromEntries(
-  EQUIPMENT_OPTIONS.map((option) => [option.id, option.label]),
-);
+const equipmentLabels = {
+  ...Object.fromEntries(EQUIPMENT_OPTIONS.map((option) => [option.id, option.label])),
+  "cpu-upper": "CPU (upper unit)",
+  cdu: "CDU",
+};
 
 // U01 retains A1's existing MQTT mapping; new units append to that contract.
 // A rack elevation reads from its highest unit at the top to U01 at the bottom.
@@ -27,6 +34,10 @@ const rackSlots = SLOT_IDS.map((slotId, index) => ({
   label: `U${String(index + 1).padStart(2, "0")}`,
 })).reverse();
 const unitLabels = Object.fromEntries(rackSlots.map(({ slotId, label }) => [slotId, label]));
+
+function cpuRange(anchorIndex) {
+  return `${unitLabels[SLOT_IDS[anchorIndex]]}–${unitLabels[SLOT_IDS[anchorIndex + 1]]}`;
+}
 
 function RackRail() {
   return (
@@ -62,6 +73,8 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
   selectedSlot = null,
   onSlotSelect,
   onSlotChange,
+  onCduChange,
+  busy = false,
 }) {
   const id = useId();
   const slotButtons = useRef({});
@@ -71,8 +84,20 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
   ));
   const activeSlot = SLOT_IDS.includes(selectedSlot) ? selectedSlot : null;
   const selectedEquipment = activeSlot ? slots[activeSlot] : null;
+  const selectedIndex = SLOT_IDS.indexOf(activeSlot);
+  const topSlot = selectedIndex === SLOT_IDS.length - 1;
+  const cduEnabled = slots[SLOT_IDS[0]] === "cdu";
+  const reserved = selectedEquipment === "cdu";
+  const isCpu = selectedEquipment === "cpu" || selectedEquipment === "cpu-upper";
   const inspectorId = `${id}-inspector`;
   const occupiedCount = SLOT_IDS.filter((slotId) => equipmentLabels[slots[slotId]]).length;
+  let instructions = "Choose equipment for this slot.";
+  if (!activeSlot) instructions = "Choose a numbered slot in the rack to configure its equipment.";
+  if (reserved) instructions = "CDU occupies U01–U04. Turn CDU off below to edit these slots.";
+  if (isCpu) {
+    const anchor = selectedEquipment === "cpu-upper" ? selectedIndex - 1 : selectedIndex;
+    instructions = `CPU occupies ${cpuRange(anchor)}. Replacing or clearing either slot removes the whole CPU.`;
+  }
 
   // Move only the rack's inner scroll area. Keyboard use must not jump the page.
   const focusSlot = (slotId) => {
@@ -88,6 +113,7 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
   };
 
   const closeInspector = () => {
+    if (busy) return;
     if (activeSlot) focusSlot(activeSlot);
     onSlotSelect(null);
   };
@@ -178,10 +204,13 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
                       tabIndex={focusedSlot === slotId ? 0 : -1}
                       aria-label={`${label}, ${equipmentLabels[equipment] || "empty"}`}
                       aria-pressed={selected}
+                      aria-disabled={busy || undefined}
                       aria-controls={inspectorId}
                       onFocus={() => setFocusedSlot(slotId)}
                       onKeyDown={(event) => handleSlotKeyDown(event, index)}
-                      onClick={() => onSlotSelect(slotId)}
+                      onClick={() => {
+                        if (!busy) onSlotSelect(slotId);
+                      }}
                       sx={(theme) => ({
                         width: "100%", minWidth: 0, minHeight: 44,
                         display: "flex", justifyContent: "flex-start", gap: { xs: 1, sm: 1.5 }, px: { xs: 1, sm: 1.5 }, py: 0.75,
@@ -217,66 +246,101 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
           </Stack>
         </Box>
 
-        <Box
-          id={inspectorId}
-          component="section"
-          aria-labelledby={`${id}-slot-title`}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && activeSlot) {
-              event.preventDefault();
-              event.stopPropagation();
-              closeInspector();
-            }
-          }}
-          sx={(theme) => ({
-            width: "100%", boxSizing: "border-box", minWidth: 0, minHeight: { xs: 410, sm: 400 },
-            border: "1px solid", borderColor: "divider", borderRadius: 1.5, p: { xs: 2, sm: 2.5 },
-            backgroundColor: alpha(theme.palette.background.paper, 0.55),
-          })}
-        >
-          <Box key={activeSlot || "empty"} sx={{ animation: "rack-inspector-enter 140ms ease-out", "@keyframes rack-inspector-enter": { from: { opacity: 0 }, to: { opacity: 1 } }, "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}>
-            <Stack direction="row" sx={{ minHeight: 44, alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-              <Typography id={`${id}-slot-title`} component="h3" variant="subheading" aria-live="polite" aria-atomic="true">{activeSlot ? `Slot ${unitLabels[activeSlot]}` : "Select a slot"}</Typography>
-              {activeSlot ? <IconButton onClick={closeInspector} aria-label="Close slot options" sx={{ width: 44, height: 44 }}><X size={20} strokeWidth={1.75} aria-hidden="true" /></IconButton> : null}
-            </Stack>
-            <Typography component="p" variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>{activeSlot ? "Choose equipment for this slot." : "Choose a numbered slot in the rack to configure its equipment."}</Typography>
+        <Stack spacing={2} aria-busy={busy} sx={{ minWidth: 0 }}>
+          <Box
+            id={inspectorId}
+            component="section"
+            aria-labelledby={`${id}-slot-title`}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && activeSlot && !busy) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeInspector();
+              }
+            }}
+            sx={(theme) => ({
+              width: "100%", boxSizing: "border-box", minWidth: 0, minHeight: { xs: 528, sm: 512 },
+              border: "1px solid", borderColor: "divider", borderRadius: 1.5, p: { xs: 2, sm: 2.5 },
+              backgroundColor: alpha(theme.palette.background.paper, 0.55),
+            })}
+          >
+            <Box key={activeSlot || "empty"} sx={{ animation: "rack-inspector-enter 140ms ease-out", "@keyframes rack-inspector-enter": { from: { opacity: 0 }, to: { opacity: 1 } }, "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}>
+              <Stack direction="row" sx={{ minHeight: 44, alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <Typography id={`${id}-slot-title`} component="h3" variant="subheading" aria-live="polite" aria-atomic="true">{activeSlot ? `Slot ${unitLabels[activeSlot]}` : "Select a slot"}</Typography>
+                {activeSlot ? <IconButton disabled={busy} onClick={closeInspector} aria-label="Close slot options" sx={{ width: 44, height: 44 }}><X size={20} strokeWidth={1.75} aria-hidden="true" /></IconButton> : null}
+              </Stack>
+              <Typography component="p" variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>{instructions}</Typography>
 
-            {activeSlot ? (
-              <>
-                <Stack spacing={1.25}>
-                  {EQUIPMENT_OPTIONS.map((option) => {
-                    const Icon = equipmentIcons[option.id];
-                    const selected = selectedEquipment === option.id;
-                    return (
-                      <ButtonBase
-                        key={option.id}
-                        aria-pressed={selected}
-                        onClick={() => onSlotChange(activeSlot, option.id)}
-                        sx={(theme) => ({
-                          display: "flex", justifyContent: "flex-start", gap: 1.5, minHeight: 56, px: 1.5, py: 1.25, textAlign: "left",
-                          border: "1px solid", borderColor: selected ? "secondary.main" : "divider", borderRadius: 1,
-                          backgroundColor: selected ? theme.palette.action.selected : "transparent",
-                          transition: theme.transitions.create(["background-color", "border-color"], { duration: 120 }),
-                          "&:hover": { backgroundColor: theme.palette.action.hover },
-                          "&:active": { backgroundColor: alpha(theme.palette.secondary.main, 0.23), transitionDuration: "0ms" },
-                          "&.Mui-focusVisible": { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 2 },
-                          "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-                        })}
-                      >
-                        <Box component={Icon} size={21} strokeWidth={1.75} aria-hidden="true" sx={{ color: "primary.light", flexShrink: 0 }} />
-                        <Typography component="span" variant="body2" sx={{ flex: 1, minWidth: 0 }}>{option.label}</Typography>
-                        {selected ? <Box component={Check} size={18} strokeWidth={1.75} aria-hidden="true" sx={{ color: "secondary.main", flexShrink: 0 }} /> : null}
-                      </ButtonBase>
-                    );
-                  })}
-                </Stack>
-                <Button variant="text" disabled={!selectedEquipment} onClick={() => onSlotChange(activeSlot, null)} sx={{ mt: 1.5, minHeight: 44, color: "text.secondary", px: 1 }}>Clear slot</Button>
-              </>
-            ) : (
-              <Box aria-hidden="true" sx={{ mt: 4, display: "grid", placeItems: "center", color: "divider" }}><Server size={52} strokeWidth={1} /></Box>
-            )}
+              {activeSlot ? (
+                <>
+                  <Stack spacing={1.25}>
+                    {EQUIPMENT_OPTIONS.map((option) => {
+                      const Icon = equipmentIcons[option.id];
+                      const selected = selectedEquipment === option.id;
+                      const cpuOption = option.id === "cpu";
+                      const disabled = busy || reserved || (cpuOption && topSlot);
+                      return (
+                        <ButtonBase
+                          key={option.id}
+                          disabled={disabled}
+                          aria-pressed={selected}
+                          aria-describedby={cpuOption ? `${id}-cpu-hint` : undefined}
+                          aria-label={option.label}
+                          onClick={() => onSlotChange(activeSlot, option.id)}
+                          sx={(theme) => ({
+                            display: "flex", justifyContent: "flex-start", gap: 1.5, minHeight: 56, px: 1.5, py: 1.25, textAlign: "left",
+                            border: "1px solid", borderColor: selected ? "secondary.main" : "divider", borderRadius: 1,
+                            backgroundColor: selected ? theme.palette.action.selected : "transparent",
+                            transition: theme.transitions.create(["background-color", "border-color"], { duration: 120 }),
+                            "&:hover": { backgroundColor: theme.palette.action.hover },
+                            "&:active": { backgroundColor: alpha(theme.palette.secondary.main, 0.23), transitionDuration: "0ms" },
+                            "&.Mui-disabled": { color: "text.disabled", borderColor: "divider" },
+                            "&.Mui-disabled > svg": { color: "text.disabled" },
+                            "&.Mui-focusVisible": { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 2 },
+                            "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+                          })}
+                        >
+                          <Box component={Icon} size={21} strokeWidth={1.75} aria-hidden="true" sx={{ color: "primary.light", flexShrink: 0 }} />
+                          <Box component="span" sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography component="span" variant="body2">{option.label}</Typography>
+                            {cpuOption && (
+                              <Typography id={`${id}-cpu-hint`} component="span" variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                                {topSlot ? "No upper slot available." : `Uses ${cpuRange(selectedIndex)} and replaces overlapping equipment.`}
+                              </Typography>
+                            )}
+                          </Box>
+                          {selected ? <Box component={Check} size={18} strokeWidth={1.75} aria-hidden="true" sx={{ color: "secondary.main", flexShrink: 0 }} /> : null}
+                        </ButtonBase>
+                      );
+                    })}
+                  </Stack>
+                  <Button variant="text" disabled={busy || reserved || !selectedEquipment} onClick={() => onSlotChange(activeSlot, null)} sx={{ mt: 1.5, minHeight: 44, color: "text.secondary", px: 1 }}>Clear slot</Button>
+                </>
+              ) : (
+                <Box aria-hidden="true" sx={{ mt: 4, display: "grid", placeItems: "center", color: "divider" }}><Server size={52} strokeWidth={1} /></Box>
+              )}
+            </Box>
           </Box>
-        </Box>
+          <Box component="section" aria-labelledby={`${id}-cdu`} sx={(theme) => ({
+            p: { xs: 2, sm: 2.5 }, border: "1px solid", borderColor: "divider", borderRadius: 1.5,
+            backgroundColor: alpha(theme.palette.background.paper, 0.55),
+          })}>
+            <Stack component="label" direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between", cursor: busy ? "default" : "pointer" }}>
+              <Box component="span" sx={{ flex: 1, minWidth: 0 }}>
+                <Typography id={`${id}-cdu`} component="span" variant="subheading" sx={{ display: "block" }}>CDU</Typography>
+                <Typography id={`${id}-cdu-help`} component="span" variant="caption" color="text.secondary">
+                  {cduEnabled ? "Occupies U01–U04. Turn off to free these slots." : "Turning on CDU replaces equipment overlapping U01–U04."}
+                </Typography>
+              </Box>
+              <Switch
+                checked={cduEnabled}
+                disabled={busy || !onCduChange}
+                onChange={(event) => onCduChange(event.target.checked)}
+                slotProps={{ input: { role: "switch", "aria-labelledby": `${id}-cdu`, "aria-describedby": `${id}-cdu-help` } }}
+              />
+            </Stack>
+          </Box>
+        </Stack>
       </Box>
       <Typography id={`${id}-keyboard`} component="p" variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
         Keyboard: use ↑ / ↓ to move between slots, Enter to select, and Tab for equipment options.

@@ -7,13 +7,27 @@ const MIN_POLAR = 0.2;
 const MAX_POLAR = Math.PI / 2 + 0.18;
 const INITIAL_POSITION = { x: 3.2, y: 2.1, z: 4.4 };
 const INITIAL_FOV = 40;
+// Server faceplates are on +Z. Reset at the original viewing distance, with
+// no horizontal or vertical offset, to face the front squarely.
+const FRONT_DISTANCE = Math.hypot(
+  INITIAL_POSITION.x,
+  INITIAL_POSITION.y,
+  INITIAL_POSITION.z,
+);
 
 // This helper is loaded by the client component after mount. One preview unit
 // represents one metre; the MQTT layer maps these vectors to Unreal centimetres.
-export function createRackOrbitScene(element, { onCameraChange, onFatalError }) {
+export function createRackOrbitScene(
+  element,
+  { onCameraChange, onFatalError },
+) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(INITIAL_FOV, 1, 0.1, 40);
-  camera.position.set(INITIAL_POSITION.x, INITIAL_POSITION.y, INITIAL_POSITION.z);
+  camera.position.set(
+    INITIAL_POSITION.x,
+    INITIAL_POSITION.y,
+    INITIAL_POSITION.z,
+  );
   const framePosition = new THREE.Vector3();
   const frameTarget = new THREE.Vector3();
   const frameQuaternion = new THREE.Quaternion();
@@ -38,14 +52,28 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   let tween = null;
   let hasSize = false;
 
-  const geometry = (value) => { geometries.add(value); return value; };
-  const material = (value) => { materials.add(value); return value; };
+  const geometry = (value) => {
+    geometries.add(value);
+    return value;
+  };
+  const material = (value) => {
+    materials.add(value);
+    return value;
+  };
   const available = () => !disposed && !disabled && !document.hidden;
 
   function snapshot() {
     return {
-      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-      target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+      position: {
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z,
+      },
+      target: {
+        x: controls.target.x,
+        y: controls.target.y,
+        z: controls.target.z,
+      },
       fov: camera.fov,
     };
   }
@@ -95,9 +123,10 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     // At an exact distance limit, OrbitControls can report a change for a tiny
     // floating-point clamp on every update. Compare the actual pose so the
     // demand loop still stops at both zoom limits.
-    const moving = framePosition.distanceToSquared(camera.position) > 1e-12
-      || frameTarget.distanceToSquared(controls.target) > 1e-12
-      || 8 * (1 - frameQuaternion.dot(camera.quaternion)) > 1e-12;
+    const moving =
+      framePosition.distanceToSquared(camera.position) > 1e-12 ||
+      frameTarget.distanceToSquared(controls.target) > 1e-12 ||
+      8 * (1 - frameQuaternion.dot(camera.quaternion)) > 1e-12;
     if (moving && userSession && available()) dirty = true;
     if (dirty && userSession && available()) {
       dirty = false;
@@ -107,7 +136,8 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
 
     if (!moving && !tween && !gesture && userSession) {
       clearDamping();
-      if (userChanged && available()) onCameraChange?.(snapshot(), { final: true });
+      if (userChanged && available())
+        onCameraChange?.(snapshot(), { final: true });
       userSession = false;
       userChanged = false;
       dirty = false;
@@ -148,9 +178,12 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     update(to);
     to.radius = THREE.MathUtils.clamp(to.radius, MIN_DISTANCE, MAX_DISTANCE);
     to.phi = THREE.MathUtils.clamp(to.phi, MIN_POLAR, MAX_POLAR);
-    if (Math.abs(to.radius - from.radius) < 0.00001
-      && Math.abs(to.theta - from.theta) < 0.00001
-      && Math.abs(to.phi - from.phi) < 0.00001) return false;
+    if (
+      Math.abs(to.radius - from.radius) < 0.00001 &&
+      Math.abs(to.theta - from.theta) < 0.00001 &&
+      Math.abs(to.phi - from.phi) < 0.00001
+    )
+      return false;
 
     userSession = true;
     if (media.matches) {
@@ -165,16 +198,30 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   }
 
   function zoom(direction) {
-    return moveCamera((spherical) => { spherical.radius *= direction > 0 ? 0.85 : 1 / 0.85; });
+    return moveCamera((spherical) => {
+      spherical.radius *= direction > 0 ? 0.85 : 1 / 0.85;
+    });
   }
 
   function keyDown(event) {
     if (event.altKey || event.ctrlKey || event.metaKey || !available()) return;
     const actions = {
-      ArrowLeft: () => moveCamera((spherical) => { spherical.theta -= 0.16; }),
-      ArrowRight: () => moveCamera((spherical) => { spherical.theta += 0.16; }),
-      ArrowUp: () => moveCamera((spherical) => { spherical.phi -= 0.12; }),
-      ArrowDown: () => moveCamera((spherical) => { spherical.phi += 0.12; }),
+      ArrowLeft: () =>
+        moveCamera((spherical) => {
+          spherical.theta -= 0.16;
+        }),
+      ArrowRight: () =>
+        moveCamera((spherical) => {
+          spherical.theta += 0.16;
+        }),
+      ArrowUp: () =>
+        moveCamera((spherical) => {
+          spherical.phi -= 0.12;
+        }),
+      ArrowDown: () =>
+        moveCamera((spherical) => {
+          spherical.phi += 0.12;
+        }),
       "+": () => zoom(1),
       "=": () => zoom(1),
       "-": () => zoom(-1),
@@ -204,7 +251,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     controlsConnected = false;
 
     suppressChanges = true;
-    camera.position.set(INITIAL_POSITION.x, INITIAL_POSITION.y, INITIAL_POSITION.z);
+    camera.position.set(0, 0, FRONT_DISTANCE);
     controls.target.set(0, 0, 0);
     camera.fov = INITIAL_FOV;
     camera.zoom = 1;
@@ -282,7 +329,9 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     event.preventDefault();
     if (disposed) return;
     dispose();
-    onFatalError?.("The 3D preview was interrupted. Reload this page to restore it.");
+    onFatalError?.(
+      "The 3D preview was interrupted. Reload this page to restore it.",
+    );
   }
 
   function dispose() {
@@ -313,7 +362,11 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   }
 
   try {
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: "low-power",
+    });
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -339,14 +392,35 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     controls.touches.TWO = null;
     controls.update();
 
-    const chassis = material(new THREE.MeshStandardMaterial({ color: "#123039", metalness: 0.4, roughness: 0.55 }));
-    const dark = material(new THREE.MeshStandardMaterial({ color: "#091b21", metalness: 0.25, roughness: 0.6 }));
-    const cyan = material(new THREE.LineBasicMaterial({ color: "#32F5FF", transparent: true, opacity: 0.38 }));
+    const chassis = material(
+      new THREE.MeshStandardMaterial({
+        color: "#123039",
+        metalness: 0.4,
+        roughness: 0.55,
+      }),
+    );
+    const dark = material(
+      new THREE.MeshStandardMaterial({
+        color: "#091b21",
+        metalness: 0.25,
+        roughness: 0.6,
+      }),
+    );
+    const cyan = material(
+      new THREE.LineBasicMaterial({
+        color: "#32F5FF",
+        transparent: true,
+        opacity: 0.38,
+      }),
+    );
     const led = material(new THREE.MeshBasicMaterial({ color: "#5AE8C4" }));
     const bodyGeometry = geometry(new THREE.BoxGeometry(1.08, 2, 0.82));
     const body = new THREE.Mesh(bodyGeometry, chassis);
     scene.add(body);
-    const edges = new THREE.LineSegments(geometry(new THREE.EdgesGeometry(bodyGeometry)), cyan);
+    const edges = new THREE.LineSegments(
+      geometry(new THREE.EdgesGeometry(bodyGeometry)),
+      cyan,
+    );
     scene.add(edges);
 
     const panelGeometry = geometry(new THREE.BoxGeometry(0.86, 0.17, 0.04));
@@ -363,7 +437,10 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     }
     scene.add(panels, leds);
 
-    const plinth = new THREE.Mesh(geometry(new THREE.BoxGeometry(1.3, 0.07, 1.04)), dark);
+    const plinth = new THREE.Mesh(
+      geometry(new THREE.BoxGeometry(1.3, 0.07, 1.04)),
+      dark,
+    );
     plinth.position.y = -1.065;
     scene.add(plinth);
     const grid = new THREE.GridHelper(8, 16, "#1C4148", "#1C4148");

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
@@ -10,6 +10,7 @@ import { Grid2X2, Server } from "lucide-react";
 import RackHeader from "../nav/RackHeader";
 import MGXPanel from "../MGX/MGXPanel";
 import AdvancedSXPanel from "../AdvancedSX/AdvancedSXPanel";
+import { planCduChange, planRackPlacement } from "../AdvancedSX/rackPlacement";
 import RackChoiceCard from "./RackChoiceCard";
 import SharedControls from "./SharedControls";
 import RackViewControls from "./RackViewControls";
@@ -31,16 +32,26 @@ const RackControlsArea = memo(function RackControlsArea({
   onSystemSelect,
   onSlotSelect,
   onSlotChange,
+  onCduChange,
   onCameraChange,
   controlsDisabled,
 }) {
   const [localControls, setLocalControls] = useState(DEFAULT_SHARED_CONTROLS);
   const [selectedSystem, setSelectedSystem] = useState(null);
   const [slots, setSlots] = useState({});
+  const currentSlots = useRef(slots);
+  const activeEdit = useRef(null);
+  const [editing, setEditing] = useState(false);
+  const [editNotice, setEditNotice] = useState("");
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedRack, setSelectedRack] = useState(null);
 
+  useEffect(() => () => {
+    activeEdit.current = null;
+  }, []);
+
   const handleRackSelect = useCallback((rack) => {
+    if (activeEdit.current) return;
     if (rack !== selectedRack) setSelectedRack(rack);
     onRackSelect?.(rack);
   }, [selectedRack, onRackSelect]);
@@ -66,18 +77,54 @@ const RackControlsArea = memo(function RackControlsArea({
     onSystemSelect?.(system);
   }, [onSystemSelect]);
 
-  const handleSlotChange = useCallback((slotId, equipmentId) => {
-    setSlots((previous) => {
-      if ((previous[slotId] ?? null) === equipmentId) return previous;
-      const next = { ...previous };
-      if (equipmentId === null) delete next[slotId];
-      else next[slotId] = equipmentId;
-      return next;
-    });
-    onSlotChange?.(slotId, equipmentId);
-  }, [onSlotChange]);
+  const applySteps = useCallback(async (steps) => {
+    if (controlsDisabled || activeEdit.current || !steps.length) return;
+    // Lock synchronously so a second click cannot start from a stale layout.
+    activeEdit.current = steps;
+    setEditing(true);
+    setEditNotice("");
+    let completed = 0;
+    try {
+      for (const step of steps) {
+        const { command } = step;
+        let result;
+        try {
+          result = command.type === "advanced-sx.cdu.set"
+            ? await onCduChange?.(command.enabled)
+            : await onSlotChange?.(command.slotId, command.equipmentId);
+        } catch {
+          // A custom publisher may reject instead of returning false.
+          break;
+        }
+        if (activeEdit.current !== steps) return;
+        // Legacy local preview callbacks return void. The MQTT callbacks
+        // explicitly return true on PUBACK and false/null on failure.
+        if (result === false || result === null) break;
+        currentSlots.current = step.slots;
+        setSlots(step.slots);
+        completed += 1;
+      }
+    } finally {
+      if (activeEdit.current === steps) {
+        if (completed < steps.length) {
+          setEditNotice(`Rack update stopped after ${completed} of ${steps.length} confirmed commands. Check the rack before trying again.`);
+        }
+        activeEdit.current = null;
+        setEditing(false);
+      }
+    }
+  }, [controlsDisabled, onCduChange, onSlotChange]);
+
+  const handleSlotChange = useCallback((slotId, equipmentId) => (
+    applySteps(planRackPlacement(currentSlots.current, slotId, equipmentId))
+  ), [applySteps]);
+
+  const handleCduChange = useCallback((enabled) => (
+    applySteps(planCduChange(currentSlots.current, enabled))
+  ), [applySteps]);
 
   const handleSlotSelect = useCallback((slotId) => {
+    if (activeEdit.current) return;
     setSelectedSlot(slotId);
     onSlotSelect?.(slotId);
   }, [onSlotSelect]);
@@ -92,8 +139,10 @@ const RackControlsArea = memo(function RackControlsArea({
       selectedSlot={selectedSlot}
       onSlotSelect={handleSlotSelect}
       onSlotChange={handleSlotChange}
+      onCduChange={onSlotChange && !onCduChange ? undefined : handleCduChange}
+      busy={editing}
     />
-  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect]);
+  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect, handleCduChange, editing, onSlotChange, onCduChange]);
 
   return (
     <>
@@ -108,7 +157,7 @@ const RackControlsArea = memo(function RackControlsArea({
         <Typography id="rack-heading" variant="heading" sx={{ mb: 1.5 }}>Choose your rack</Typography>
         <Typography variant="body" color="text.secondary">Choose a rack, then configure its options below.</Typography>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 2, md: 2.5 }, mt: { xs: 3, md: 4 } }}>
+        <Box inert={editing ? true : undefined} aria-busy={editing} sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 2, md: 2.5 }, mt: { xs: 3, md: 4 } }}>
           <RackChoiceCard title="MGX" description="Choose GB300 or Vera Rubin." icon={MGX_ICON} selected={selectedRack === "mgx"} panelId="rack-options" onClick={selectMGX} />
           <RackChoiceCard title="Advanced SX" description="Configure equipment across 48 rack slots." icon={ADVANCED_SX_ICON} selected={selectedRack === "advanced-sx"} panelId="rack-options" onClick={selectAdvancedSX} />
         </Box>
@@ -116,6 +165,7 @@ const RackControlsArea = memo(function RackControlsArea({
 
       <Box id="rack-options" role="region" aria-label="Rack configuration options" sx={{ pt: 4, minWidth: 0 }}>
         <RackOptionsTransition activeRack={selectedRack} mgx={mgxPanel} advancedSX={advancedSXPanel} />
+        {editNotice && selectedRack === "advanced-sx" && <Alert severity="warning" sx={{ mt: 2 }}>{editNotice}</Alert>}
       </Box>
 
       <Box sx={{ mt: 4 }}>
@@ -137,6 +187,7 @@ export function HomeUi({
   onSystemSelect,
   onSlotSelect,
   onSlotChange,
+  onCduChange,
   onCameraChange,
   mqttFeedback,
   controlsDisabled = false,
@@ -174,6 +225,7 @@ export function HomeUi({
             onSystemSelect={onSystemSelect}
             onSlotSelect={onSlotSelect}
             onSlotChange={onSlotChange}
+            onCduChange={onCduChange}
             onCameraChange={onCameraChange}
             controlsDisabled={controlsDisabled}
           />

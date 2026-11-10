@@ -1,7 +1,6 @@
 export const DEFAULT_SHARED_CONTROLS = {
   rackView: "back",
   rackHidden: false,
-  highlightHidden: false,
   rpdu: false,
   manifolds: false,
   heatExchanger: false,
@@ -16,6 +15,8 @@ export const EQUIPMENT_OPTIONS = [
   { id: "generic-server", label: "Generic server" },
   { id: "generic-switch", label: "Generic switch" },
   { id: "ocp-powershell", label: "OCP PowerShell" },
+  { id: "cpu", label: "CPU" },
+  { id: "rack-brace", label: "Rack Brace" },
 ];
 
 // Stable MQTT slot identities: append new rows; never renumber existing slots.
