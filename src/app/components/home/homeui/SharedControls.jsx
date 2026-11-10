@@ -3,9 +3,11 @@
 import { memo, useId } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
-import { Plug, Snowflake } from "lucide-react";
+import { Eye, EyeOff, Plug, Snowflake } from "lucide-react";
 import { alpha } from "@mui/material/styles";
 
 const MOTION = "220ms cubic-bezier(0.2, 0, 0, 1)";
@@ -71,6 +73,67 @@ function SwitchRow({ label, checked, onChange, divider = false }) {
   );
 }
 
+function VisibilityRow({ label, hidden, onChange, showLabel = true }) {
+  return (
+    <Box sx={{ mt: 1 }}>
+      {showLabel ? (
+        <Typography component="p" variant="body" sx={{ mb: 1.25 }}>
+          {label}
+        </Typography>
+      ) : null}
+      <ToggleButtonGroup
+        exclusive
+        value={hidden ? "hidden" : "visible"}
+        sx={(theme) => ({
+          width: "100%",
+          mt: showLabel ? 0 : 0.25,
+          "& .MuiToggleButton-root": {
+            position: "relative",
+            zIndex: 0,
+            flex: 1,
+            minHeight: 42,
+            gap: 0.75,
+            textTransform: "none",
+            whiteSpace: "nowrap",
+            color: "text.secondary",
+            borderColor: "divider",
+            transition: theme.transitions.create(
+              ["background-color", "border-color", "color"],
+              { duration: 120 },
+            ),
+            "&.Mui-selected": {
+              zIndex: 1,
+              borderColor: "primary.main",
+              color: "primary.main",
+              backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              "&:hover": {
+                backgroundColor: alpha(theme.palette.primary.main, 0.18),
+              },
+            },
+            "&.Mui-focusVisible": {
+              zIndex: 2,
+              outline: `2px solid ${theme.palette.primary.main}`,
+              outlineOffset: 2,
+            },
+          },
+          "@media (prefers-reduced-motion: reduce)": {
+            "& .MuiToggleButton-root": { transition: "none" },
+          },
+        })}
+      >
+        <ToggleButton value="hidden" onClick={() => onChange(true)}>
+          <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />
+          Hide
+        </ToggleButton>
+        <ToggleButton value="visible" onClick={() => onChange(false)}>
+          <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
+          Unhide
+        </ToggleButton>
+      </ToggleButtonGroup>
+    </Box>
+  );
+}
+
 // Fractional grid rows animate content height without a fixed-height scroller.
 // Disable hidden controls immediately while the visual exit completes.
 function AnimatedControl({ show, children, ...props }) {
@@ -106,6 +169,7 @@ export const SharedControls = memo(function SharedControls({
 }) {
   const id = useId();
   const showAll = selectedRack !== "mgx";
+  const showAdvancedSXControls = selectedRack === "advanced-sx";
   const setToggle = (key, checked) =>
     onChange({ ...value, [key]: checked }, { key, value: checked });
 
@@ -134,7 +198,7 @@ export const SharedControls = memo(function SharedControls({
               : "minmax(0, 1fr) minmax(0, 0fr)",
           },
           alignItems: "start",
-          gap: showAll ? { xs: 2, md: 3 } : 0,
+          gap: showAll ? { xs: 2.5, md: 3.25 } : 0,
           minWidth: 0,
           transition: `grid-template-columns ${MOTION}, gap ${MOTION}`,
           "@media (prefers-reduced-motion: reduce)": { transition: "none" },
@@ -171,6 +235,22 @@ export const SharedControls = memo(function SharedControls({
               label="Heat exchanger"
               checked={value.heatExchanger}
               onChange={(checked) => setToggle("heatExchanger", checked)}
+            />
+          </Box>
+        </AnimatedControl>
+        <AnimatedControl show={showAdvancedSXControls}>
+          <Box role="group" aria-labelledby={`${id}-highlight`} sx={cardStyles}>
+            <ControlHeading
+              id={`${id}-highlight`}
+              icon={<Eye strokeWidth={1.75} />}
+            >
+              UI visibility
+            </ControlHeading>
+            <VisibilityRow
+              label="Highlight visibility"
+              hidden={value.highlightHidden}
+              onChange={(hidden) => setToggle("highlightHidden", hidden)}
+              showLabel={false}
             />
           </Box>
         </AnimatedControl>

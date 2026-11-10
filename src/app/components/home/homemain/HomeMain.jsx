@@ -34,6 +34,7 @@ export const HomeMain = () => {
     if (!change) return;
     if (change.key === "rackView") publishCommand({ type: "rack.view.set", view: change.value });
     else if (change.key === "rackHidden") publishCommand({ type: "rack.visibility.set", hidden: change.value });
+    else if (change.key === "highlightHidden") publishCommand({ type: "rack.highlight.set", hidden: change.value });
     else publishCommand({ type: "accessory.set", accessory: change.key, enabled: change.value });
   }, [publishCommand]);
 

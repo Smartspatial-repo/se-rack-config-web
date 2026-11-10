@@ -1,15 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { buildMqttPayload, createRackCommand, describeRackCommand } from "@/lib/mqtt/commands";
+import {
+  buildMqttPayload,
+  createRackCommand,
+  describeRackCommand,
+} from "@/lib/mqtt/commands";
 import { createBrowserMqttClient } from "@/lib/mqtt/browserClient";
 
 const SETUP_TIMEOUT_MS = 15000;
 
 function logCommand(stage, command, level = "info", details = {}) {
   console[level](
-    "[MQTT] " + stage + ": " + describeRackCommand(command) + " | "
-      + JSON.stringify(buildMqttPayload(command, { format: "location" })),
+    "[MQTT] " +
+      stage +
+      ": " +
+      describeRackCommand(command) +
+      " | " +
+      JSON.stringify(buildMqttPayload(command, { format: "location" })),
     { commandId: command.commandId, ...details },
   );
 }
@@ -18,7 +26,9 @@ function logCommand(stage, command, level = "info", details = {}) {
 export function useMqttController() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [isChecking, setIsChecking] = useState(true);
-  const [connectionMessage, setConnectionMessage] = useState("Connecting to your rack…");
+  const [connectionMessage, setConnectionMessage] = useState(
+    "Connecting to your rack…",
+  );
   const [checkedAt, setCheckedAt] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [lastDelivery, setLastDelivery] = useState(null);
@@ -37,14 +47,20 @@ export function useMqttController() {
     const command = attempts.current.get(event.commandId);
     if (event.commandId) attempts.current.delete(event.commandId);
     if (!command) return; // Connection errors are displayed by the connection panel.
-    const canRetry = event.delivery === "not-sent"
-      && latestCommandId.current === command.commandId
-      && event.code !== "INVALID_COMMAND";
+    const canRetry =
+      event.delivery === "not-sent" &&
+      latestCommandId.current === command.commandId &&
+      event.code !== "INVALID_COMMAND";
     retryable.current = canRetry ? command : null;
-    logCommand(event.delivery === "unknown" ? "Delivery unknown" : "Not sent", command,
-      event.delivery === "unknown" ? "warn" : "error", {
-        code: event.code, delivery: event.delivery,
-      });
+    logCommand(
+      event.delivery === "unknown" ? "Delivery unknown" : "Not sent",
+      command,
+      event.delivery === "unknown" ? "warn" : "error",
+      {
+        code: event.code,
+        delivery: event.delivery,
+      },
+    );
     setError({
       ...event,
       description: describeRackCommand(command),
@@ -66,7 +82,8 @@ export function useMqttController() {
         commandId: command.commandId,
         code: "MQTT_RECONNECT_REQUESTED",
         delivery: "unknown",
-        message: "The connection was restarted before acknowledgement. Check Unreal before repeating the action.",
+        message:
+          "The connection was restarted before acknowledgement. Check Unreal before repeating the action.",
       });
     }
     transport.current?.stop();
@@ -93,7 +110,9 @@ export function useMqttController() {
       const [result, mqttModule] = await Promise.race([
         Promise.all([
           fetch("/api/mqtt/browser-config", {
-            cache: "no-store", credentials: "same-origin", signal: controller.signal,
+            cache: "no-store",
+            credentials: "same-origin",
+            signal: controller.signal,
           }).then(async (response) => {
             if (!response.ok) throw new Error("CONFIG_REQUEST_FAILED");
             return response.json();
@@ -107,12 +126,16 @@ export function useMqttController() {
         const state = result.state === "disabled" ? "disabled" : "unconfigured";
         setConnectionStatus(state);
         setIsChecking(false);
-        setConnectionMessage(typeof result.message === "string"
-          ? result.message.slice(0, 300) : "Configure the browser MQTT connection settings.");
+        setConnectionMessage(
+          typeof result.message === "string"
+            ? result.message.slice(0, 300)
+            : "Configure the browser MQTT connection settings.",
+        );
         return;
       }
       const connect = mqttModule.connect ?? mqttModule.default?.connect;
-      if (typeof connect !== "function") throw new Error("MQTT_MODULE_UNAVAILABLE");
+      if (typeof connect !== "function")
+        throw new Error("MQTT_MODULE_UNAVAILABLE");
 
       const client = createBrowserMqttClient({
         connect,
@@ -124,27 +147,40 @@ export function useMqttController() {
           if (state.state === "connected") {
             lastCameraLog.current = -Infinity;
             setCheckedAt(new Date().toISOString());
-            console.info("[MQTT] Connected over WebSocket. Ready for commands.");
+            console.info(
+              "[MQTT] Connected over WebSocket. Ready for commands.",
+            );
           } else if (state.state === "disconnected") {
-            console.warn("[MQTT] Connection unavailable.", { code: state.code });
+            console.warn("[MQTT] Connection unavailable.", {
+              code: state.code,
+            });
           }
         },
-        onPending: (count) => { if (isCurrent()) setPendingCount(count); },
+        onPending: (count) => {
+          if (isCurrent()) setPendingCount(count);
+        },
         onDelivery: (delivery) => {
           if (!isCurrent()) return;
           const command = attempts.current.get(delivery.commandId);
           attempts.current.delete(delivery.commandId);
           if (!command) return;
-          logCommand("Broker acknowledged", command, "info", { delivery: delivery.delivery });
+          logCommand("Broker acknowledged", command, "info", {
+            delivery: delivery.delivery,
+          });
           setLastDelivery({ ...delivery, label: describeRackCommand(command) });
         },
-        onError: (event) => { if (isCurrent()) reportCommandError(event); },
+        onError: (event) => {
+          if (isCurrent()) reportCommandError(event);
+        },
         onCameraPublish: (payload) => {
           if (!isCurrent()) return;
           const now = Date.now();
           if (payload.phase === "end" || now - lastCameraLog.current >= 1000) {
             lastCameraLog.current = now;
-            console.info("[MQTT] Camera handed to transport (QoS 0; no application acknowledgement) | " + JSON.stringify(payload));
+            console.info(
+              "[MQTT] Camera handed to transport (QoS 0; no application acknowledgement) | " +
+                JSON.stringify(payload),
+            );
           }
         },
       });
@@ -154,55 +190,76 @@ export function useMqttController() {
       if (isCurrent() && (!controller.signal.aborted || timedOut)) {
         setConnectionStatus("disconnected");
         setIsChecking(false);
-        setConnectionMessage(timedOut
-          ? "Connection setup timed out. Try connecting again."
-          : "Connection settings or the MQTT client could not be loaded. Try connecting again.");
+        setConnectionMessage(
+          timedOut
+            ? "Connection setup timed out. Try connecting again."
+            : "Connection settings or the MQTT client could not be loaded. Try connecting again.",
+        );
         console.warn("[MQTT] Connection setup failed.", {
           code: timedOut ? "MQTT_SETUP_TIMEOUT" : "MQTT_SETUP_FAILED",
         });
       }
     } finally {
       clearTimeout(timer);
-      if (setupRequest.current?.controller === controller) setupRequest.current = null;
+      if (setupRequest.current?.controller === controller)
+        setupRequest.current = null;
     }
   }, [reportCommandError]);
 
-  const sendCommand = useCallback((command, stage) => {
-    retryable.current = null;
-    latestCommandId.current = command.commandId;
-    setError(null);
-    attempts.current.set(command.commandId, command);
-    logCommand(stage, command);
-    if (!transport.current) {
-      reportCommandError({
-        commandId: command.commandId, code: "MQTT_DISCONNECTED", delivery: "not-sent",
-        message: "MQTT is not connected. This action was not sent; select it again after connecting.",
-      });
-      return null;
-    }
-    // publish() returns immediately. Other controls remain usable while ACKs arrive.
-    return transport.current.publish(command) ? command.commandId : null;
-  }, [reportCommandError]);
-
-  const publishCommand = useCallback((fields) => {
-    if (!mounted.current) return null;
-    let command;
-    try {
-      command = createRackCommand(fields);
-    } catch {
+  const sendCommand = useCallback(
+    (command, stage) => {
       retryable.current = null;
-      latestCommandId.current = null;
-      console.warn("[MQTT] Not sent: invalid configuration command.");
-      setError({ code: "INVALID_COMMAND", delivery: "not-sent", canRetry: false,
-        message: "This configuration command is invalid." });
-      return null;
-    }
-    return sendCommand(command, "Publish requested");
-  }, [sendCommand]);
+      latestCommandId.current = command.commandId;
+      setError(null);
+      attempts.current.set(command.commandId, command);
+      logCommand(stage, command);
+      if (!transport.current) {
+        reportCommandError({
+          commandId: command.commandId,
+          code: "MQTT_DISCONNECTED",
+          delivery: "not-sent",
+          message:
+            "MQTT is not connected. This action was not sent; select it again after connecting.",
+        });
+        return null;
+      }
+      // publish() returns immediately. Other controls remain usable while ACKs arrive.
+      return transport.current.publish(command) ? command.commandId : null;
+    },
+    [reportCommandError],
+  );
+
+  const publishCommand = useCallback(
+    (fields) => {
+      if (!mounted.current) return null;
+      let command;
+      try {
+        command = createRackCommand(fields);
+      } catch {
+        retryable.current = null;
+        latestCommandId.current = null;
+        console.warn("[MQTT] Not sent: invalid configuration command.");
+        setError({
+          code: "INVALID_COMMAND",
+          delivery: "not-sent",
+          canRetry: false,
+          message: "This configuration command is invalid.",
+        });
+        return null;
+      }
+      return sendCommand(command, "Publish requested");
+    },
+    [sendCommand],
+  );
 
   const retryLastCommand = useCallback(() => {
     const command = retryable.current;
-    if (!mounted.current || !command || command.commandId !== latestCommandId.current) return null;
+    if (
+      !mounted.current ||
+      !command ||
+      command.commandId !== latestCommandId.current
+    )
+      return null;
     return sendCommand(command, "Retry requested");
   }, [sendCommand]);
 
@@ -237,9 +294,18 @@ export function useMqttController() {
   }, [checkConnection]);
 
   return {
-    connectionStatus, isChecking, checkedAt, connectionMessage,
-    pendingCount, lastDelivery, error,
-    publishCommand, publishCamera, retryLastCommand, clearError, checkConnection,
+    connectionStatus,
+    isChecking,
+    checkedAt,
+    connectionMessage,
+    pendingCount,
+    lastDelivery,
+    error,
+    publishCommand,
+    publishCamera,
+    retryLastCommand,
+    clearError,
+    checkConnection,
   };
 }
 
