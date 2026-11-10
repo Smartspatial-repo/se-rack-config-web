@@ -244,10 +244,10 @@ export const SharedControls = memo(function SharedControls({
               id={`${id}-highlight`}
               icon={<Eye strokeWidth={1.75} />}
             >
-              UI visibility
+              Highlighter visibility
             </ControlHeading>
             <VisibilityRow
-              label="Highlight visibility"
+              label="Highlighter visibility"
               hidden={value.highlightHidden}
               onChange={(hidden) => setToggle("highlightHidden", hidden)}
               showLabel={false}
