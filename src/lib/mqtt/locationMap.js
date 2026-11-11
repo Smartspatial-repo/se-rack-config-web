@@ -62,6 +62,11 @@ function commandKey(command) {
       if (typeof command.hidden !== "boolean") invalid("Rack hidden must be a boolean.");
       values = [command.hidden];
       break;
+    case "rack.highlight.set":
+      fields = ["hidden"];
+      if (typeof command.hidden !== "boolean") invalid("Highlight hidden must be a boolean.");
+      values = [command.hidden];
+      break;
     case "accessory.set":
       fields = ["accessory", "enabled"];
       if (typeof command.enabled !== "boolean") invalid("Accessory enabled must be a boolean.");
@@ -114,6 +119,8 @@ const options = [
   option(15, "Unhide rack", { type: "rack.visibility.set", hidden: false }),
   option(16, "CDU on", { type: "advanced-sx.cdu.set", enabled: true }),
   option(17, "CDU off", { type: "advanced-sx.cdu.set", enabled: false }),
+  option(18, "Hide highlighter", { type: "rack.highlight.set", hidden: true }),
+  option(19, "Unhide highlighter", { type: "rack.highlight.set", hidden: false }),
 ];
 
 // Stable row-major IDs: A1, B1, C1, D1, A2 ... D12.

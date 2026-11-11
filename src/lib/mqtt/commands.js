@@ -56,6 +56,10 @@ export function parseRackCommand(input) {
       if (typeof input.hidden !== "boolean") invalid("Rack hidden must be a boolean.");
       command.hidden = input.hidden;
       break;
+    case "rack.highlight.set":
+      if (typeof input.hidden !== "boolean") invalid("Highlight hidden must be a boolean.");
+      command.hidden = input.hidden;
+      break;
     case "accessory.set":
       command.accessory = oneOf(input.accessory, ACCESSORIES, "accessory");
       if (typeof input.enabled !== "boolean") invalid("Accessory enabled must be a boolean.");
@@ -140,6 +144,7 @@ export function describeRackCommand(command) {
     case "advanced-sx.cdu.set": return command.enabled ? "CDU on" : "CDU off";
     case "rack.view.set": return command.view === "front" ? "Front view selected" : "Back view selected";
     case "rack.visibility.set": return command.hidden ? "Hide rack" : "Unhide rack";
+    case "rack.highlight.set": return command.hidden ? "Hide highlighter" : "Unhide highlighter";
     case "accessory.set": {
       const names = { rpdu: "RPDU", manifolds: "Manifolds", heatExchanger: "Heat exchanger" };
       return `${names[command.accessory]} ${command.enabled ? "on" : "off"}`;
