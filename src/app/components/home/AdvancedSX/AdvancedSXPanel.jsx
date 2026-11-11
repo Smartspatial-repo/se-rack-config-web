@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useId, useRef, useState } from "react";
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -27,26 +27,44 @@ const equipmentLabels = {
   cdu: "CDU",
 };
 
-// U01 retains A1's existing MQTT mapping; new units append to that contract.
-// A rack elevation reads from its highest unit at the top to U01 at the bottom.
-const rackSlots = SLOT_IDS.map((slotId, index) => ({
-  slotId,
-  label: `U${String(index + 1).padStart(2, "0")}`,
-})).reverse();
-const unitLabels = Object.fromEntries(rackSlots.map(({ slotId, label }) => [slotId, label]));
+const unitHeight = 44;
+const unitGap = 6;
+const cduUnits = SLOT_IDS.slice(0, 4);
+const unitLabels = Object.fromEntries(
+  SLOT_IDS.map((slotId, index) => [slotId, `U${String(index + 1).padStart(2, "0")}`]),
+);
+
+// The lowest unit owns the faceplate and keeps its original MQTT slot ID.
+function getRackRows(slots) {
+  const rows = [];
+  for (let index = 0; index < SLOT_IDS.length;) {
+    const slotId = SLOT_IDS[index];
+    let span = 1;
+    if (index === 0 && cduUnits.every((id) => slots[id] === "cdu")) {
+      span = cduUnits.length;
+    } else if (slots[slotId] === "cpu" && slots[SLOT_IDS[index + 1]] === "cpu-upper") {
+      span = 2;
+    }
+    const units = SLOT_IDS.slice(index, index + span);
+    const label = span === 1 ? unitLabels[slotId] : `${unitLabels[slotId]}–${unitLabels[units[span - 1]]}`;
+    rows.push({ slotId, units, label });
+    index += span;
+  }
+  return rows.reverse();
+}
 
 function cpuRange(anchorIndex) {
   return `${unitLabels[SLOT_IDS[anchorIndex]]}–${unitLabels[SLOT_IDS[anchorIndex + 1]]}`;
 }
 
-function RackRail() {
+function RackRail({ span }) {
   return (
     <Box aria-hidden="true" sx={(theme) => ({
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-evenly",
       background: `linear-gradient(90deg, ${theme.palette.background.default}, ${theme.palette.divider} 45%, ${alpha(theme.palette.text.secondary, 0.16)})`,
       borderInline: `1px solid ${alpha(theme.palette.text.secondary, 0.12)}`, borderRadius: "2px",
     })}>
-      {[0, 1, 2].map((hole) => (
+      {Array.from({ length: 3 * span }, (_, hole) => (
         <Box key={hole} sx={{ width: 4, height: 5, borderRadius: "1px", bgcolor: "background.default", boxShadow: "0 1px 0 rgba(174,196,220,0.15)" }} />
       ))}
     </Box>
@@ -79,24 +97,35 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
   const id = useId();
   const slotButtons = useRef({});
   const scrollArea = useRef(null);
+  const lastFocusedButton = useRef(null);
+  const rackSlots = useMemo(() => getRackRows(slots), [slots]);
   const [focusedSlot, setFocusedSlot] = useState(() => (
     SLOT_IDS.includes(selectedSlot) ? selectedSlot : rackSlots[0].slotId
   ));
-  const activeSlot = SLOT_IDS.includes(selectedSlot) ? selectedSlot : null;
+  const activeRow = rackSlots.find(({ units }) => units.includes(selectedSlot));
+  const activeSlot = activeRow?.slotId ?? null;
+  const tabSlot = rackSlots.find(({ units }) => units.includes(focusedSlot))?.slotId ?? rackSlots[0].slotId;
+  useLayoutEffect(() => {
+    // A confirmed install can consume the focused button while the user is browsing.
+    const previous = lastFocusedButton.current;
+    if (!previous || previous.isConnected || !previous.ownerDocument) return;
+    lastFocusedButton.current = null;
+    if (previous.ownerDocument.activeElement === previous.ownerDocument.body) {
+      slotButtons.current[tabSlot]?.focus({ preventScroll: true });
+    }
+  }, [rackSlots, tabSlot]);
   const selectedEquipment = activeSlot ? slots[activeSlot] : null;
   const selectedIndex = SLOT_IDS.indexOf(activeSlot);
   const topSlot = selectedIndex === SLOT_IDS.length - 1;
   const cduEnabled = slots[SLOT_IDS[0]] === "cdu";
   const reserved = selectedEquipment === "cdu";
-  const isCpu = selectedEquipment === "cpu" || selectedEquipment === "cpu-upper";
   const inspectorId = `${id}-inspector`;
   const occupiedCount = SLOT_IDS.filter((slotId) => equipmentLabels[slots[slotId]]).length;
   let instructions = "Choose equipment for this slot.";
   if (!activeSlot) instructions = "Choose a numbered slot in the rack to configure its equipment.";
   if (reserved) instructions = "CDU occupies U01–U04. Turn CDU off below to edit these slots.";
-  if (isCpu) {
-    const anchor = selectedEquipment === "cpu-upper" ? selectedIndex - 1 : selectedIndex;
-    instructions = `CPU occupies ${cpuRange(anchor)}. Replacing or clearing either slot removes the whole CPU.`;
+  if (selectedEquipment === "cpu" && activeRow.units.length === 2) {
+    instructions = `CPU occupies ${activeRow.label}. Clearing it frees both units.`;
   }
 
   // Move only the rack's inner scroll area. Keyboard use must not jump the page.
@@ -190,29 +219,35 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
               "&::-webkit-scrollbar-thumb": { backgroundColor: theme.palette.primary.dark, borderRadius: 8, border: `2px solid ${theme.palette.background.default}` },
             })}
           >
-            <Box sx={{ display: "grid", gap: "6px" }}>
-              {rackSlots.map(({ slotId, label }, index) => {
+            <Box sx={{ display: "grid", gap: `${unitGap}px` }}>
+              {rackSlots.map(({ slotId, label, units }, index) => {
                 const equipment = equipmentLabels[slots[slotId]] ? slots[slotId] : null;
                 const selected = activeSlot === slotId;
                 const Icon = equipment ? equipmentIcons[equipment] : null;
                 return (
                   <Box key={slotId} sx={{ display: "grid", gridTemplateColumns: "10px minmax(0, 1fr) 10px", gap: { xs: "6px", sm: "9px" }, minWidth: 0 }}>
-                    <RackRail />
+                    <RackRail span={units.length} />
                     <ButtonBase
                       ref={(element) => { slotButtons.current[slotId] = element; }}
                       data-slot-id={slotId}
-                      tabIndex={focusedSlot === slotId ? 0 : -1}
+                      tabIndex={tabSlot === slotId ? 0 : -1}
                       aria-label={`${label}, ${equipmentLabels[equipment] || "empty"}`}
                       aria-pressed={selected}
                       aria-disabled={busy || undefined}
                       aria-controls={inspectorId}
-                      onFocus={() => setFocusedSlot(slotId)}
+                      onFocus={(event) => {
+                        lastFocusedButton.current = event.currentTarget;
+                        setFocusedSlot(slotId);
+                      }}
+                      onBlur={(event) => {
+                        if (event.relatedTarget) lastFocusedButton.current = null;
+                      }}
                       onKeyDown={(event) => handleSlotKeyDown(event, index)}
                       onClick={() => {
                         if (!busy) onSlotSelect(slotId);
                       }}
                       sx={(theme) => ({
-                        width: "100%", minWidth: 0, minHeight: 44,
+                        width: "100%", minWidth: 0, minHeight: units.length * unitHeight + (units.length - 1) * unitGap,
                         display: "flex", justifyContent: "flex-start", gap: { xs: 1, sm: 1.5 }, px: { xs: 1, sm: 1.5 }, py: 0.75,
                         textAlign: "left", border: "1px solid", borderColor: selected ? "primary.main" : "divider", borderRadius: "4px",
                         backgroundColor: selected ? alpha(theme.palette.primary.main, 0.12) : alpha(theme.palette.background.paper, 0.9),
@@ -226,14 +261,14 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
                       })}
                     >
                       <RackHandle />
-                      <Typography component="span" variant="caption" sx={{ width: 32, flexShrink: 0, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: selected ? "primary.main" : "text.secondary" }}>{label}</Typography>
+                      <Typography component="span" variant="caption" sx={{ minWidth: 32, flexShrink: 0, whiteSpace: "nowrap", fontWeight: 600, fontVariantNumeric: "tabular-nums", color: selected ? "primary.main" : "text.secondary" }}>{label}</Typography>
                       {Icon ? <Box component={Icon} size={17} strokeWidth={1.6} aria-hidden="true" sx={{ color: "primary.light", flexShrink: 0, display: { xs: "none", sm: "block" } }} /> : null}
                       <Typography component="span" variant="body2" color={equipment ? "text.primary" : "text.secondary"} sx={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.8125rem" }}>{equipmentLabels[equipment] || "Empty slot"}</Typography>
                       <Box aria-hidden="true" sx={(theme) => ({ display: { xs: "none", sm: "block" }, width: { sm: 42, lg: 64 }, height: 18, flexShrink: 0, opacity: selected ? 0.65 : 0.4, backgroundImage: `radial-gradient(${theme.palette.text.secondary} 0.65px, transparent 0.85px)`, backgroundSize: "4px 4px" })} />
                       <Box component={equipment ? Check : Plus} size={16} strokeWidth={1.75} aria-hidden="true" sx={{ color: equipment ? "secondary.main" : "text.secondary", flexShrink: 0 }} />
                       <RackHandle />
                     </ButtonBase>
-                    <RackRail />
+                    <RackRail span={units.length} />
                   </Box>
                 );
               })}
@@ -266,7 +301,9 @@ export const AdvancedSXPanel = memo(function AdvancedSXPanel({
           >
             <Box key={activeSlot || "empty"} sx={{ animation: "rack-inspector-enter 140ms ease-out", "@keyframes rack-inspector-enter": { from: { opacity: 0 }, to: { opacity: 1 } }, "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}>
               <Stack direction="row" sx={{ minHeight: 44, alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-                <Typography id={`${id}-slot-title`} component="h3" variant="subheading" aria-live="polite" aria-atomic="true">{activeSlot ? `Slot ${unitLabels[activeSlot]}` : "Select a slot"}</Typography>
+                <Typography id={`${id}-slot-title`} component="h3" variant="subheading" aria-live="polite" aria-atomic="true">
+                  {activeRow ? `${activeRow.units.length > 1 ? "Slots" : "Slot"} ${activeRow.label}` : "Select a slot"}
+                </Typography>
                 {activeSlot ? <IconButton disabled={busy} onClick={closeInspector} aria-label="Close slot options" sx={{ width: 44, height: 44 }}><X size={20} strokeWidth={1.75} aria-hidden="true" /></IconButton> : null}
               </Stack>
               <Typography component="p" variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>{instructions}</Typography>
