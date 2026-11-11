@@ -1,16 +1,18 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 import Container from "@mui/material/Container";
+import LinearProgress from "@mui/material/LinearProgress";
 import Snackbar from "@mui/material/Snackbar";
 import Typography from "@mui/material/Typography";
 import { Grid2X2, Server } from "lucide-react";
 import RackHeader from "../nav/RackHeader";
 import MGXPanel from "../MGX/MGXPanel";
 import AdvancedSXPanel from "../AdvancedSX/AdvancedSXPanel";
-import { planCduChange, planRackPlacement } from "../AdvancedSX/rackPlacement";
+import { planCduChange, planRackPlacement, planRackSwitch } from "../AdvancedSX/rackPlacement";
 import RackChoiceCard from "./RackChoiceCard";
 import SharedControls from "./SharedControls";
 import RackViewControls from "./RackViewControls";
@@ -24,6 +26,58 @@ const MemoSharedControls = memo(SharedControls);
 const MGX_ICON = <Server strokeWidth={1.75} />;
 const ADVANCED_SX_ICON = <Grid2X2 strokeWidth={1.75} />;
 
+const switchLabels = {
+  waiting: "Finishing current request…",
+  clearing: "Clearing current selections…",
+  switching: "Switching rack…",
+};
+
+function RackSwitchStatus({ progress }) {
+  if (!progress) return null;
+  const clearing = progress.phase === "clearing";
+  const count = clearing ? `${progress.completed} of ${progress.total}` : "";
+
+  return (
+    <Box
+      sx={(theme) => ({
+        position: "fixed", zIndex: theme.zIndex.snackbar,
+        bottom: "max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px))",
+        insetInline: 0, mx: "auto", width: "min(340px, calc(100% - 32px))",
+        boxSizing: "border-box", p: 2, pointerEvents: "none",
+        border: 1, borderColor: "divider", borderRadius: 1.5,
+        bgcolor: "background.paper", boxShadow: 8,
+        animation: "rack-status-enter 140ms ease-out both",
+        "@keyframes rack-status-enter": {
+          from: { opacity: 0, transform: "translateY(5px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          animation: "none",
+          "& .MuiCircularProgress-root, & .MuiCircularProgress-circle": { animation: "none" },
+          "& .MuiLinearProgress-bar": { transition: "none" },
+        },
+      })}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <CircularProgress aria-hidden="true" size={20} thickness={4} disableShrink sx={{ flexShrink: 0 }} />
+        <Typography component="p" role="status" variant="body2" sx={{ flex: 1, fontWeight: 600 }}>
+          {switchLabels[progress.phase]}
+        </Typography>
+        {clearing && <Typography aria-hidden="true" variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{count}</Typography>}
+      </Box>
+      {clearing && (
+        <LinearProgress
+          variant="determinate"
+          value={(progress.completed / progress.total) * 100}
+          aria-label="Cleanup progress"
+          aria-valuetext={`${count} cleanup commands confirmed`}
+          sx={{ mt: 1.5, height: 3, borderRadius: 2, bgcolor: "divider" }}
+        />
+      )}
+    </Box>
+  );
+}
+
 // Audio-level updates belong to the voice UI, not the rack configuration tree.
 const RackControlsArea = memo(function RackControlsArea({
   controls,
@@ -36,98 +90,211 @@ const RackControlsArea = memo(function RackControlsArea({
   onCameraChange,
   controlsDisabled,
 }) {
-  const [localControls, setLocalControls] = useState(DEFAULT_SHARED_CONTROLS);
-  const [selectedSystem, setSelectedSystem] = useState(null);
-  const [slots, setSlots] = useState({});
-  const currentSlots = useRef(slots);
+  const [configuration, setConfiguration] = useState(() => ({
+    rack: null,
+    model: null,
+    slots: {},
+    selectedSlot: null,
+    controls: controls ?? DEFAULT_SHARED_CONTROLS,
+  }));
+  const { rack: selectedRack, model: selectedSystem, slots, selectedSlot } = configuration;
+  const current = useRef(configuration);
   const activeEdit = useRef(null);
+  const pendingSwitch = useRef(null);
+  const pendingFocus = useRef(null);
   const [editing, setEditing] = useState(false);
+  const [switchProgress, setSwitchProgress] = useState(null);
+  const switching = switchProgress !== null;
   const [editNotice, setEditNotice] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [selectedRack, setSelectedRack] = useState(null);
+
+  const commit = useCallback((patch) => {
+    current.current = { ...current.current, ...patch };
+    setConfiguration(current.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (controls && controls !== current.current.controls) commit({ controls });
+  }, [controls, commit]);
 
   useEffect(() => () => {
     activeEdit.current = null;
+    pendingSwitch.current = null;
+    pendingFocus.current = null;
   }, []);
 
-  const handleRackSelect = useCallback((rack) => {
-    if (activeEdit.current) return;
-    if (rack !== selectedRack) setSelectedRack(rack);
-    onRackSelect?.(rack);
-  }, [selectedRack, onRackSelect]);
+  // Each patch describes exactly what this command changes. A later failure
+  // leaves earlier confirmed changes in place for the next user-initiated switch.
+  const sendStep = useCallback(async (step) => {
+    const { command } = step;
+    let delivery;
+    let patch;
+    switch (command.type) {
+      case "advanced-sx.cdu.set":
+        patch = { slots: step.slots };
+        delivery = await onCduChange?.(command.enabled);
+        break;
+      case "advanced-sx.slot.set":
+        patch = { slots: step.slots };
+        delivery = await onSlotChange?.(command.slotId, command.equipmentId);
+        break;
+      case "advanced-sx.slot.focus":
+        patch = { selectedSlot: command.slotId };
+        delivery = await onSlotSelect?.(command.slotId);
+        break;
+      case "accessory.set": {
+        const next = { ...current.current.controls, [command.accessory]: command.enabled };
+        delivery = await onControlsChange?.(next, { key: command.accessory, value: command.enabled });
+        patch = { controls: { ...current.current.controls, [command.accessory]: command.enabled } };
+        break;
+      }
+      case "rack.visibility.set":
+      case "rack.highlight.set": {
+        const key = command.type === "rack.visibility.set" ? "rackHidden" : "highlightHidden";
+        const next = { ...current.current.controls, [key]: command.hidden };
+        delivery = await onControlsChange?.(next, { key, value: command.hidden });
+        patch = { controls: next };
+        break;
+      }
+      case "mgx.model.select":
+        patch = { model: command.model };
+        delivery = await onSystemSelect?.(command.model);
+        break;
+      case "rack.select":
+        patch = { rack: command.rack };
+        if (current.current.rack === "mgx" && command.rack !== "mgx") {
+          patch.model = null;
+        }
+        delivery = await onRackSelect?.(command.rack);
+        break;
+      default:
+        throw new Error("Unsupported rack action.");
+    }
+    // Local preview callbacks can return void. MQTT callbacks resolve on PUBACK.
+    return delivery === false || delivery === null ? null : patch;
+  }, [onCduChange, onSlotChange, onSlotSelect, onControlsChange, onSystemSelect, onRackSelect]);
+
+  const applySteps = useCallback((steps, onConfirmed) => {
+    if (controlsDisabled || activeEdit.current || !steps.length) return false;
+    const edit = {};
+    activeEdit.current = edit;
+    setEditing(true);
+    setEditNotice("");
+    edit.done = (async () => {
+      let completed = 0;
+      try {
+        for (const step of steps) {
+          const patch = await sendStep(step);
+          if (!patch || activeEdit.current !== edit) return false;
+          commit(patch);
+          completed += 1;
+          onConfirmed?.(completed);
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        if (activeEdit.current === edit) {
+          if (completed < steps.length) {
+            setEditNotice(`Rack update stopped after ${completed} of ${steps.length} confirmed commands. Check the rack before trying again.`);
+          }
+          activeEdit.current = null;
+          setEditing(false);
+        }
+      }
+    })();
+    return edit.done;
+  }, [controlsDisabled, commit, sendStep]);
+
+  const handleRackSelect = useCallback(async (destination) => {
+    if (controlsDisabled || pendingSwitch.current) return;
+    const request = {};
+    pendingSwitch.current = request;
+    setSwitchProgress({ phase: "waiting" });
+    try {
+      // A click immediately after an install/toggle uses its confirmed result.
+      const edit = activeEdit.current;
+      const focus = pendingFocus.current;
+      if (edit && !(await edit.done)) return;
+      if (focus && !(await focus.done)) return;
+      if (pendingSwitch.current !== request) return;
+      const steps = planRackSwitch(current.current, destination);
+      // The last command selects the destination. It has its own status.
+      const total = steps.length - 1;
+      const updateProgress = (completed) => {
+        if (completed <= total) {
+          setSwitchProgress({ phase: completed < total ? "clearing" : "switching", completed, total });
+        }
+      };
+      updateProgress(0);
+      await applySteps(steps, updateProgress);
+    } finally {
+      if (pendingSwitch.current === request) {
+        pendingSwitch.current = null;
+        setSwitchProgress(null);
+      }
+    }
+  }, [controlsDisabled, applySteps]);
 
   const selectMGX = useCallback(() => handleRackSelect("mgx"), [handleRackSelect]);
   const selectAdvancedSX = useCallback(() => handleRackSelect("advanced-sx"), [handleRackSelect]);
 
-  const handleControlsChange = useCallback((next, change) => {
-    if (controls === undefined) setLocalControls(next);
-    onControlsChange?.(next, change);
-  }, [controls, onControlsChange]);
+  const handleControlsChange = useCallback((_next, change) => {
+    if (controlsDisabled || pendingSwitch.current) return;
+    const { key, value } = change;
+    if (key === "rackView" || key === "rackHidden" || key === "highlightHidden") {
+      const next = { ...current.current.controls, [key]: value };
+      commit({ controls: next });
+      onControlsChange?.(next, change);
+    } else {
+      return applySteps([{ command: { type: "accessory.set", accessory: key, enabled: value } }]);
+    }
+  }, [controlsDisabled, applySteps, commit, onControlsChange]);
 
   const handleResetView = useCallback(() => {
-    if (controlsDisabled) return;
-    handleControlsChange(
-      { ...(controls ?? localControls), rackView: "front" },
-      { key: "rackView", value: "front" },
-    );
-  }, [controls, localControls, controlsDisabled, handleControlsChange]);
+    handleControlsChange(null, { key: "rackView", value: "front" });
+  }, [handleControlsChange]);
 
-  const handleSystemSelect = useCallback((system) => {
-    setSelectedSystem(system);
-    onSystemSelect?.(system);
-  }, [onSystemSelect]);
-
-  const applySteps = useCallback(async (steps) => {
-    if (controlsDisabled || activeEdit.current || !steps.length) return;
-    // Lock synchronously so a second click cannot start from a stale layout.
-    activeEdit.current = steps;
-    setEditing(true);
-    setEditNotice("");
-    let completed = 0;
-    try {
-      for (const step of steps) {
-        const { command } = step;
-        let result;
-        try {
-          result = command.type === "advanced-sx.cdu.set"
-            ? await onCduChange?.(command.enabled)
-            : await onSlotChange?.(command.slotId, command.equipmentId);
-        } catch {
-          // A custom publisher may reject instead of returning false.
-          break;
-        }
-        if (activeEdit.current !== steps) return;
-        // Legacy local preview callbacks return void. The MQTT callbacks
-        // explicitly return true on PUBACK and false/null on failure.
-        if (result === false || result === null) break;
-        currentSlots.current = step.slots;
-        setSlots(step.slots);
-        completed += 1;
-      }
-    } finally {
-      if (activeEdit.current === steps) {
-        if (completed < steps.length) {
-          setEditNotice(`Rack update stopped after ${completed} of ${steps.length} confirmed commands. Check the rack before trying again.`);
-        }
-        activeEdit.current = null;
-        setEditing(false);
-      }
+  const handleSystemSelect = useCallback((model) => {
+    if (controlsDisabled || activeEdit.current || pendingSwitch.current || current.current.rack !== "mgx") return;
+    if (current.current.model === model) {
+      commit({ model: null });
+      return;
     }
-  }, [controlsDisabled, onCduChange, onSlotChange]);
+    return applySteps([{ command: { type: "mgx.model.select", model } }]);
+  }, [controlsDisabled, applySteps, commit]);
 
-  const handleSlotChange = useCallback((slotId, equipmentId) => (
-    applySteps(planRackPlacement(currentSlots.current, slotId, equipmentId))
-  ), [applySteps]);
+  const handleSlotChange = useCallback((slotId, equipmentId) => {
+    if (!pendingSwitch.current && current.current.rack === "advanced-sx") {
+      return applySteps(planRackPlacement(current.current.slots, slotId, equipmentId));
+    }
+  }, [applySteps]);
 
-  const handleCduChange = useCallback((enabled) => (
-    applySteps(planCduChange(currentSlots.current, enabled))
-  ), [applySteps]);
+  const handleCduChange = useCallback((enabled) => {
+    if (!pendingSwitch.current && current.current.rack === "advanced-sx") {
+      return applySteps(planCduChange(current.current.slots, enabled));
+    }
+  }, [applySteps]);
 
   const handleSlotSelect = useCallback((slotId) => {
-    if (activeEdit.current) return;
-    setSelectedSlot(slotId);
-    onSlotSelect?.(slotId);
-  }, [onSlotSelect]);
+    if (controlsDisabled || pendingSwitch.current || activeEdit.current || current.current.rack !== "advanced-sx") return;
+    const focus = {};
+    pendingFocus.current = focus;
+    // Open the inspector on click. Retain its selection until a close is confirmed.
+    if (slotId !== null) commit({ selectedSlot: slotId });
+    focus.done = (async () => {
+      try {
+        const delivery = await onSlotSelect?.(slotId);
+        if (delivery === false || delivery === null) return false;
+        if (slotId === null && pendingFocus.current === focus) commit({ selectedSlot: null });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        if (pendingFocus.current === focus) pendingFocus.current = null;
+      }
+    })();
+    return focus.done;
+  }, [controlsDisabled, commit, onSlotSelect]);
 
   const mgxPanel = useMemo(() => (
     <MGXPanel value={selectedSystem} onChange={handleSystemSelect} />
@@ -140,14 +307,14 @@ const RackControlsArea = memo(function RackControlsArea({
       onSlotSelect={handleSlotSelect}
       onSlotChange={handleSlotChange}
       onCduChange={onSlotChange && !onCduChange ? undefined : handleCduChange}
-      busy={editing}
+      busy={editing || switching}
     />
-  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect, handleCduChange, editing, onSlotChange, onCduChange]);
+  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect, handleCduChange, editing, switching, onSlotChange, onCduChange]);
 
   return (
     <>
-      <Box sx={{ mb: { xs: 4, md: 5 } }}>
-        <RackViewControls value={controls ?? localControls} onChange={handleControlsChange} />
+      <Box inert={switching || undefined} sx={{ mb: { xs: 4, md: 5 } }}>
+        <RackViewControls value={controls ?? configuration.controls} onChange={handleControlsChange} />
       </Box>
 
       <Box component="section" aria-labelledby="rack-heading">
@@ -157,21 +324,24 @@ const RackControlsArea = memo(function RackControlsArea({
         <Typography id="rack-heading" variant="heading" sx={{ mb: 1.5 }}>Choose your rack</Typography>
         <Typography variant="body" color="text.secondary">Choose a rack, then configure its options below.</Typography>
 
-        <Box inert={editing ? true : undefined} aria-busy={editing} sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 2, md: 2.5 }, mt: { xs: 3, md: 4 } }}>
+        <Box inert={switching || undefined} aria-busy={switching} sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 2, md: 2.5 }, mt: { xs: 3, md: 4 } }}>
           <RackChoiceCard title="MGX" description="Choose GB300 or Vera Rubin." icon={MGX_ICON} selected={selectedRack === "mgx"} panelId="rack-options" onClick={selectMGX} />
           <RackChoiceCard title="Advanced SX" description="Configure equipment across 48 rack slots." icon={ADVANCED_SX_ICON} selected={selectedRack === "advanced-sx"} panelId="rack-options" onClick={selectAdvancedSX} />
         </Box>
       </Box>
 
       <Box id="rack-options" role="region" aria-label="Rack configuration options" sx={{ pt: 4, minWidth: 0 }}>
-        <RackOptionsTransition activeRack={selectedRack} mgx={mgxPanel} advancedSX={advancedSXPanel} />
-        {editNotice && selectedRack === "advanced-sx" && <Alert severity="warning" sx={{ mt: 2 }}>{editNotice}</Alert>}
+        <Box aria-busy={editing || switching} inert={editing || switching || undefined}>
+          <RackOptionsTransition activeRack={selectedRack} mgx={mgxPanel} advancedSX={advancedSXPanel} />
+        </Box>
+        <RackSwitchStatus progress={controlsDisabled ? null : switchProgress} />
+        {editNotice && <Alert severity="warning" sx={{ mt: 2 }}>{editNotice}</Alert>}
       </Box>
 
-      <Box sx={{ mt: 4 }}>
-        <MemoSharedControls value={controls ?? localControls} onChange={handleControlsChange} selectedRack={selectedRack} />
+      <Box inert={editing || switching || undefined} sx={{ mt: 4 }}>
+        <MemoSharedControls value={controls ?? configuration.controls} onChange={handleControlsChange} selectedRack={selectedRack} />
       </Box>
-      <Box sx={{ mt: 3 }}>
+      <Box inert={switching || undefined} sx={{ mt: 3 }}>
         <RackOrbitPanel onCameraChange={onCameraChange} onReset={handleResetView} disabled={controlsDisabled} />
       </Box>
     </>

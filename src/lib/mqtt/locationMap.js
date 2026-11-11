@@ -117,10 +117,10 @@ const options = [
   option(13, "Close slot selection", { type: "advanced-sx.slot.focus", slotId: null }),
   option(14, "Hide rack", { type: "rack.visibility.set", hidden: true }),
   option(15, "Unhide rack", { type: "rack.visibility.set", hidden: false }),
-  option(16, "CDU on", { type: "advanced-sx.cdu.set", enabled: true }),
-  option(17, "CDU off", { type: "advanced-sx.cdu.set", enabled: false }),
-  option(18, "Hide highlighter", { type: "rack.highlight.set", hidden: true }),
-  option(19, "Unhide highlighter", { type: "rack.highlight.set", hidden: false }),
+  option(16, "Hide highlighter", { type: "rack.highlight.set", hidden: true }),
+  option(17, "Unhide highlighter", { type: "rack.highlight.set", hidden: false }),
+  option(18, "CDU on", { type: "advanced-sx.cdu.set", enabled: true }),
+  option(19, "CDU off", { type: "advanced-sx.cdu.set", enabled: false }),
 ];
 
 // Stable row-major IDs: A1, B1, C1, D1, A2 ... D12.

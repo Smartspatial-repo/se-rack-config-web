@@ -37,7 +37,7 @@ export const MGXPanel = memo(function MGXPanel({ value = null, onChange }) {
             <ButtonBase
               key={system.id}
               onClick={() => onChange(system.id)}
-              aria-label={`Select ${system.label}`}
+              aria-label={system.label}
               aria-pressed={selected}
               sx={(theme) => ({
                 width: "100%",
@@ -95,7 +95,7 @@ export const MGXPanel = memo(function MGXPanel({ value = null, onChange }) {
                   color={selected ? "secondary.light" : "text.secondary"}
                   sx={{ display: "block", mt: 0.75 }}
                 >
-                  {selected ? "Selected" : "Select system"}
+                  {selected ? "Deselect system" : "Select system"}
                 </Typography>
               </Box>
               {selected && (

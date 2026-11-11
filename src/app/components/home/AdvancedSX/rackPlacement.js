@@ -79,3 +79,31 @@ export function planCduChange(slots, enabled) {
   steps.push({ command: { type: "advanced-sx.cdu.set", enabled }, slots: next });
   return steps;
 }
+
+// Release the outgoing rack while it is still active in Unreal. A CDU owns
+// its four units as a single device; its OFF command releases all four.
+export function planRackSwitch({ rack, slots, selectedSlot, controls }, destination) {
+  const steps = [];
+  if (rack && rack !== destination) {
+    if (rack === "advanced-sx") {
+      steps.push(...planCduChange(slots, false));
+      steps.push(...clearOccupiedUnits(afterClears(slots, steps), SLOT_IDS));
+      if (selectedSlot !== null) {
+        steps.push({ command: { type: "advanced-sx.slot.focus", slotId: null } });
+      }
+    }
+    for (const accessory of ["rpdu", "manifolds", "heatExchanger"]) {
+      if (controls[accessory]) {
+        steps.push({ command: { type: "accessory.set", accessory, enabled: false } });
+      }
+    }
+    if (controls.rackHidden) {
+      steps.push({ command: { type: "rack.visibility.set", hidden: false } });
+    }
+    if (controls.highlightHidden) {
+      steps.push({ command: { type: "rack.highlight.set", hidden: false } });
+    }
+  }
+  steps.push({ command: { type: "rack.select", rack: destination } });
+  return steps;
+}
