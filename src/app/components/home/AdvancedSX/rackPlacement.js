@@ -101,7 +101,7 @@ export function planRackSwitch({ rack, slots, selectedSlot, controls }, destinat
       steps.push({ command: { type: "rack.visibility.set", hidden: false } });
     }
     if (controls.highlightHidden) {
-      steps.push({ command: { type: "rack.highlight.set", hidden: false } });
+      steps.push({ command: { type: "advanced-sx.cdu.set", enabled: false } });
     }
   }
   steps.push({ command: { type: "rack.select", rack: destination } });
