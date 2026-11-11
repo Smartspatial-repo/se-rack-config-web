@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -8,8 +8,19 @@ import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import { X } from "lucide-react";
 import HomeUi from "../homeui/HomeUi";
+import { DEFAULT_RACK, DEFAULT_SHARED_CONTROLS } from "../homeui/constants";
 import MqttConnectionToast from "../homeui/MqttConnectionToast";
 import useMqttController from "@/hooks/useMqttController";
+
+const startupCommands = [
+  { type: "rack.view.set", view: DEFAULT_SHARED_CONTROLS.rackView },
+  { type: "rack.visibility.set", hidden: DEFAULT_SHARED_CONTROLS.rackHidden },
+  {
+    type: "rack.highlight.set",
+    hidden: DEFAULT_SHARED_CONTROLS.highlightHidden,
+  },
+  { type: "rack.select", rack: DEFAULT_RACK },
+];
 
 export const HomeMain = () => {
   const {
@@ -25,22 +36,62 @@ export const HomeMain = () => {
     retryLastCommand,
     clearError,
   } = useMqttController();
+  const [startupIndex, setStartupIndex] = useState(0);
+  const [startupFailed, setStartupFailed] = useState(false);
+  const startupAttempt = useRef(null);
+  const connected = connectionStatus === "connected" && !isChecking;
+  const startupComplete = startupIndex === startupCommands.length;
+
+  useEffect(() => {
+    if (!connected || startupComplete) return;
+    let observing = true;
+    setStartupFailed(false);
+    // Reuse the same acknowledgement if React reattaches this effect, or
+    // if an ACK and disconnect arrive together before the index is committed.
+    if (startupAttempt.current?.index !== startupIndex) {
+      const ack = Promise.resolve(
+        publishCommand(startupCommands[startupIndex], { waitForAck: true }),
+      );
+      startupAttempt.current = { index: startupIndex, ack };
+    }
+    const attempt = startupAttempt.current;
+    function onSettled(confirmed) {
+      if (!confirmed && startupAttempt.current === attempt)
+        startupAttempt.current = null;
+      if (!observing) return;
+      if (confirmed) setStartupIndex(startupIndex + 1);
+      else setStartupFailed(true);
+    }
+    attempt.ack.then(onSettled, () => onSettled(false));
+    return () => {
+      observing = false;
+    };
+  }, [connected, publishCommand, startupComplete, startupIndex]);
 
   const onRackSelect = useCallback(
     (rack) => {
-      publishCommand({ type: "rack.select", rack });
+      return publishCommand(
+        { type: "rack.select", rack },
+        { waitForAck: true },
+      );
     },
     [publishCommand],
   );
   const onSystemSelect = useCallback(
     (model) => {
-      publishCommand({ type: "mgx.model.select", model });
+      return publishCommand(
+        { type: "mgx.model.select", model },
+        { waitForAck: true },
+      );
     },
     [publishCommand],
   );
   const onSlotSelect = useCallback(
     (slotId) => {
-      publishCommand({ type: "advanced-sx.slot.focus", slotId });
+      return publishCommand(
+        { type: "advanced-sx.slot.focus", slotId },
+        { waitForAck: true },
+      );
     },
     [publishCommand],
   );
@@ -72,11 +123,14 @@ export const HomeMain = () => {
       else if (change.key === "highlightHidden")
         publishCommand({ type: "rack.highlight.set", hidden: change.value });
       else
-        publishCommand({
-          type: "accessory.set",
-          accessory: change.key,
-          enabled: change.value,
-        });
+        return publishCommand(
+          {
+            type: "accessory.set",
+            accessory: change.key,
+            enabled: change.value,
+          },
+          { waitForAck: true },
+        );
     },
     [publishCommand],
   );
@@ -95,6 +149,9 @@ export const HomeMain = () => {
     <>
       <MqttConnectionToast
         connectionStatus={connectionStatus}
+        startupStatus={
+          startupComplete ? "ready" : startupFailed ? "failed" : "applying"
+        }
         isChecking={isChecking}
         connectionMessage={connectionMessage}
         onRetry={checkConnection}
@@ -109,7 +166,7 @@ export const HomeMain = () => {
         onControlsChange={onControlsChange}
         onCameraChange={publishCamera}
         mqttFeedback={mqttFeedback}
-        controlsDisabled={connectionStatus !== "connected" || isChecking}
+        controlsDisabled={!connected || !startupComplete}
       />
       <Snackbar
         open={Boolean(error)}

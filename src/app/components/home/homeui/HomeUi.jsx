@@ -19,7 +19,7 @@ import RackViewControls from "./RackViewControls";
 import RackOrbitPanel from "./RackOrbitPanel";
 import VoiceAgentPanel from "./VoiceAgentPanel";
 import RackOptionsTransition from "./RackOptionsTransition";
-import { DEFAULT_SHARED_CONTROLS } from "./constants";
+import { DEFAULT_RACK, DEFAULT_SHARED_CONTROLS } from "./constants";
 
 const MemoRackHeader = memo(RackHeader);
 const MemoSharedControls = memo(SharedControls);
@@ -91,7 +91,7 @@ const RackControlsArea = memo(function RackControlsArea({
   controlsDisabled,
 }) {
   const [configuration, setConfiguration] = useState(() => ({
-    rack: null,
+    rack: DEFAULT_RACK,
     model: null,
     slots: {},
     selectedSlot: null,

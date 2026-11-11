@@ -17,19 +17,17 @@ const CONNECTED_DURATION = 3000;
 /** Connection feedback is outside document flow and outside the disabled controls. */
 export const MqttConnectionToast = memo(function MqttConnectionToast({
   connectionStatus = "connecting",
+  startupStatus = "ready",
   isChecking = false,
   connectionMessage,
   onRetry,
 }) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const phase =
-    isChecking || connectionStatus === "connecting"
-      ? "connecting"
-      : connectionStatus === "connected"
-        ? "connected"
-        : connectionStatus === "preview"
-          ? "preview"
-          : "unavailable";
+  const phase = isChecking || connectionStatus === "connecting"
+    ? "connecting"
+    : connectionStatus === "connected"
+      ? startupStatus === "ready" ? "connected" : startupStatus
+      : connectionStatus === "preview" ? "preview" : "unavailable";
   const [open, setOpen] = useState(phase !== "preview");
 
   useEffect(() => {
@@ -43,9 +41,12 @@ export const MqttConnectionToast = memo(function MqttConnectionToast({
 
   const connecting = phase === "connecting";
   const connected = phase === "connected";
-  const accent = connecting ? "primary" : connected ? "secondary" : "warning";
+  const busy = connecting || phase === "applying";
+  const accent = busy ? "primary" : connected ? "secondary" : "warning";
   const title = connecting
     ? "Connecting to your rack"
+    : phase === "applying" ? "Applying rack defaults"
+    : phase === "failed" ? "Rack setup interrupted"
     : connected
       ? "Connected"
       : connectionStatus === "unconfigured"
@@ -55,6 +56,8 @@ export const MqttConnectionToast = memo(function MqttConnectionToast({
           : "Connection unavailable";
   const description = connecting
     ? "Your controls will be ready shortly."
+    : phase === "applying" ? "Setting Front view, Unhide, and MGX."
+    : phase === "failed" ? "Reconnect to finish applying the startup settings."
     : connected
       ? "Your rack controls are ready."
       : connectionMessage || "Check your connection and try again.";
@@ -92,10 +95,7 @@ export const MqttConnectionToast = memo(function MqttConnectionToast({
           backgroundColor: alpha(theme.palette.background.paper, 0.96),
           backdropFilter: "blur(14px)",
           boxShadow: `0 12px 36px ${alpha(theme.palette.background.default, 0.35)}`,
-          transition: theme.transitions.create(
-            ["border-color", "background-color"],
-            { duration: 180 },
-          ),
+          transition: theme.transitions.create(["border-color", "background-color"], { duration: 180 }),
           "@media (prefers-reduced-motion: reduce)": { transition: "none" },
         })}
       >
@@ -128,7 +128,7 @@ export const MqttConnectionToast = memo(function MqttConnectionToast({
               backgroundColor: alpha(theme.palette[accent].main, 0.09),
             })}
           >
-            {connecting ? (
+            {busy ? (
               <CircularProgress
                 size={20}
                 thickness={3}
@@ -141,38 +141,23 @@ export const MqttConnectionToast = memo(function MqttConnectionToast({
                   },
                 }}
               />
-            ) : connected ? (
-              <Check size={20} strokeWidth={1.75} />
-            ) : (
-              <WifiOff size={19} strokeWidth={1.75} />
-            )}
+            ) : connected ? <Check size={20} strokeWidth={1.75} /> : <WifiOff size={19} strokeWidth={1.75} />}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography component="p" variant="body2" sx={{ fontWeight: 600 }}>
               {title}
             </Typography>
-            <Typography
-              component="p"
-              variant="caption"
-              color="text.secondary"
-              sx={{ mt: 0.5, lineHeight: 1.5, overflowWrap: "anywhere" }}
-            >
+            <Typography component="p" variant="caption" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.5, overflowWrap: "anywhere" }}>
               {description}
             </Typography>
           </Box>
-          {phase === "unavailable" && onRetry ? (
+          {(phase === "unavailable" || phase === "failed") && onRetry ? (
             <Button
               variant="outlined"
               size="small"
               onClick={onRetry}
               startIcon={<RotateCw size={15} aria-hidden="true" />}
-              sx={{
-                minHeight: 40,
-                flexShrink: 0,
-                width: { xs: "100%", sm: "auto" },
-                color: "text.primary",
-                borderColor: "divider",
-              }}
+              sx={{ minHeight: 40, flexShrink: 0, width: { xs: "100%", sm: "auto" }, color: "text.primary", borderColor: "divider" }}
             >
               Reconnect
             </Button>

@@ -1,6 +1,9 @@
+export const DEFAULT_RACK = "mgx";
+
 export const DEFAULT_SHARED_CONTROLS = {
-  rackView: "back",
+  rackView: "front",
   rackHidden: false,
+  highlightHidden: false,
   rpdu: false,
   manifolds: false,
   heatExchanger: false,
