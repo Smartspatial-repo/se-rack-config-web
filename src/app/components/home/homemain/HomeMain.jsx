@@ -16,8 +16,8 @@ const startupCommands = [
   { type: "rack.view.set", view: DEFAULT_SHARED_CONTROLS.rackView },
   { type: "rack.visibility.set", hidden: DEFAULT_SHARED_CONTROLS.rackHidden },
   {
-    type: "advanced-sx.cdu.set",
-    enabled: DEFAULT_SHARED_CONTROLS.highlightHidden,
+    type: "rack.highlight.set",
+    hidden: DEFAULT_SHARED_CONTROLS.highlightHidden,
   },
   { type: "rack.select", rack: DEFAULT_RACK },
 ];
@@ -107,7 +107,7 @@ export const HomeMain = () => {
   const onCduChange = useCallback(
     (enabled) => {
       return publishCommand(
-        { type: "rack.highlight.set", hidden: enabled },
+        { type: "advanced-sx.cdu.set", enabled },
         { waitForAck: true },
       );
     },
@@ -121,7 +121,7 @@ export const HomeMain = () => {
       else if (change.key === "rackHidden")
         publishCommand({ type: "rack.visibility.set", hidden: change.value });
       else if (change.key === "highlightHidden")
-        publishCommand({ type: "advanced-sx.cdu.set", enabled: change.value });
+        publishCommand({ type: "rack.highlight.set", hidden: change.value });
       else
         return publishCommand(
           {

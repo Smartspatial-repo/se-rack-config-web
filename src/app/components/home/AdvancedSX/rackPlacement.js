@@ -14,13 +14,17 @@ function occupiedUnits(slots, slotId) {
   const unit = SLOT_IDS.indexOf(slotId);
   const below = SLOT_IDS[unit - 1];
   const above = SLOT_IDS[unit + 1];
-  if (equipmentId === "cpu" && slots[above] === "cpu-upper") return [slotId, above];
-  if (equipmentId === "cpu-upper" && slots[below] === "cpu") return [below, slotId];
+  if (equipmentId === "cpu" && slots[above] === "cpu-upper")
+    return [slotId, above];
+  if (equipmentId === "cpu-upper" && slots[below] === "cpu")
+    return [below, slotId];
   return [slotId];
 }
 
 function clearOccupiedUnits(slots, requestedUnits) {
-  const affected = new Set(requestedUnits.flatMap((id) => occupiedUnits(slots, id)));
+  const affected = new Set(
+    requestedUnits.flatMap((id) => occupiedUnits(slots, id)),
+  );
   let next = slots;
   const steps = [];
   for (const id of SLOT_IDS) {
@@ -44,7 +48,11 @@ function afterClears(slots, steps) {
 /** Each step includes the local occupancy to commit once its command succeeds. */
 export function planRackPlacement(slots, slotId, equipmentId) {
   const index = SLOT_IDS.indexOf(slotId);
-  if (index < 0 || (equipmentId !== null && !selectableEquipment.has(equipmentId))) return [];
+  if (
+    index < 0 ||
+    (equipmentId !== null && !selectableEquipment.has(equipmentId))
+  )
+    return [];
   if (slots[CDU_UNITS[0]] === "cdu" && index < CDU_UNITS.length) return [];
   if (equipmentId === null) return clearOccupiedUnits(slots, [slotId]);
 
@@ -54,7 +62,8 @@ export function planRackPlacement(slots, slotId, equipmentId) {
 
   let conflicts = [];
   if (cpu) {
-    const alreadyInstalled = slots[slotId] === "cpu" && slots[above] === "cpu-upper";
+    const alreadyInstalled =
+      slots[slotId] === "cpu" && slots[above] === "cpu-upper";
     if (!alreadyInstalled) conflicts = [slotId, above];
   } else if (slots[slotId] === "cpu" || slots[slotId] === "cpu-upper") {
     conflicts = [slotId];
@@ -76,32 +85,42 @@ export function planCduChange(slots, enabled) {
     if (enabled) next[id] = "cdu";
     else delete next[id];
   }
-  steps.push({ command: { type: "advanced-sx.cdu.set", enabled }, slots: next });
+  steps.push({
+    command: { type: "advanced-sx.cdu.set", enabled },
+    slots: next,
+  });
   return steps;
 }
 
 // Release the outgoing rack while it is still active in Unreal. A CDU owns
 // its four units as a single device; its OFF command releases all four.
-export function planRackSwitch({ rack, slots, selectedSlot, controls }, destination) {
+export function planRackSwitch(
+  { rack, slots, selectedSlot, controls },
+  destination,
+) {
   const steps = [];
   if (rack && rack !== destination) {
     if (rack === "advanced-sx") {
       steps.push(...planCduChange(slots, false));
       steps.push(...clearOccupiedUnits(afterClears(slots, steps), SLOT_IDS));
       if (selectedSlot !== null) {
-        steps.push({ command: { type: "advanced-sx.slot.focus", slotId: null } });
+        steps.push({
+          command: { type: "advanced-sx.slot.focus", slotId: null },
+        });
       }
     }
     for (const accessory of ["rpdu", "manifolds", "heatExchanger"]) {
       if (controls[accessory]) {
-        steps.push({ command: { type: "accessory.set", accessory, enabled: false } });
+        steps.push({
+          command: { type: "accessory.set", accessory, enabled: false },
+        });
       }
     }
     if (controls.rackHidden) {
       steps.push({ command: { type: "rack.visibility.set", hidden: false } });
     }
     if (controls.highlightHidden) {
-      steps.push({ command: { type: "advanced-sx.cdu.set", enabled: false } });
+      steps.push({ command: { type: "rack.highlight.set", hidden: false } });
     }
   }
   steps.push({ command: { type: "rack.select", rack: destination } });

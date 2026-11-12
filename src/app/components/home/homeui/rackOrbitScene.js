@@ -38,6 +38,10 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   let dirty = false;
   let tween = null;
   let hasSize = false;
+  const touches = new Map();
+  let pinchDistance = 0;
+  let scrollingPage = false;
+  let scrollRemainder = 0;
 
   const geometry = (value) => { geometries.add(value); return value; };
   const material = (value) => { materials.add(value); return value; };
@@ -64,11 +68,16 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
 
   // Flush a tiny remaining damping delta so an idle resize or later interaction
   // cannot resume an old drag. The settled snapshot is sent only by renderFrame.
-  function clearDamping() {
+  function clearDamping(keepPosition = false) {
     if (!controls) return;
+    const position = keepPosition ? camera.position.clone() : null;
     suppressChanges = true;
     controls.enableDamping = false;
     controls.update();
+    if (position) {
+      camera.position.copy(position);
+      controls.update();
+    }
     controls.enableDamping = !media.matches;
     suppressChanges = false;
   }
@@ -80,6 +89,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     framePosition.copy(camera.position);
     frameTarget.copy(controls.target);
     frameQuaternion.copy(camera.quaternion);
+    if (!scrollingPage && touches.size === 2) applyPinch();
     if (tween && available()) {
       const progress = Math.min(1, (now - tween.startedAt) / tween.duration);
       const eased = 1 - (1 - progress) ** 3;
@@ -134,6 +144,96 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     invalidate();
   }
 
+  function fingerDistance() {
+    const [a, b] = touches.values();
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function applyPinch() {
+    const distance = fingerDistance();
+    if (distance >= 1 && pinchDistance >= 1 && distance !== pinchDistance) {
+      controls.dollyOut(distance / pinchDistance);
+    }
+    pinchDistance = distance;
+  }
+
+  function touchDown(event) {
+    if (event.pointerType !== "touch" || !available()) return;
+    // Only the preview owns touch. OrbitControls still owns mouse/pen drags.
+    event.stopImmediatePropagation();
+    if (touches.has(event.pointerId)) return;
+    if (!scrollingPage && touches.size === 2) applyPinch();
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    renderer.domElement.setPointerCapture(event.pointerId);
+    if (scrollingPage) return;
+    if (touches.size === 1) {
+      beginGesture();
+    } else if (touches.size === 2) {
+      clearDamping(true);
+      pinchDistance = fingerDistance();
+    } else {
+      scrollingPage = true;
+      // Settle any actual camera movement before switching to page scrolling.
+      // A stationary three-finger contact never creates a camera packet.
+      const finishCamera = userSession && (dirty || userChanged);
+      cancelInteraction(true);
+      if (finishCamera) onCameraChange?.(snapshot(), { final: true });
+      invalidate();
+    }
+  }
+
+  function touchMove(event) {
+    const point = touches.get(event.pointerId);
+    if (!point) return;
+    event.stopImmediatePropagation();
+    const dx = event.clientX - point.x;
+    const dy = event.clientY - point.y;
+    point.x = event.clientX;
+    point.y = event.clientY;
+    if (scrollingPage) {
+      if (touches.size === 3) {
+        // One pointer event moves the three-finger centroid by one third
+        // of its displacement. Accumulate fractions for slow swipes.
+        scrollRemainder -= dy / 3;
+        const pixels = Math.trunc(scrollRemainder);
+        if (pixels !== 0) {
+          window.scrollBy({ top: pixels, behavior: "instant" });
+          scrollRemainder -= pixels;
+        }
+      }
+    } else if (touches.size === 1) {
+      const radians = 2 * Math.PI * controls.rotateSpeed / Math.max(1, renderer.domElement.clientHeight);
+      if (dx) controls.rotateLeft(dx * radians);
+      if (dy) controls.rotateUp(dy * radians);
+    } else {
+      // Sample both fingers together once per frame, including when they
+      // travel in parallel and their separation does not actually change.
+      invalidate();
+    }
+  }
+
+  function touchEnd(event) {
+    if (event.pointerType !== "touch") return;
+    event.stopImmediatePropagation();
+    if (!touches.has(event.pointerId)) return;
+    if (!scrollingPage && touches.size === 2) applyPinch();
+    touches.delete(event.pointerId);
+    scrollRemainder = 0;
+    if (touches.size === 0) {
+      if (!scrollingPage) endGesture();
+      scrollingPage = false;
+    }
+  }
+
+  function clearTouches() {
+    for (const id of touches.keys()) {
+      if (renderer.domElement.hasPointerCapture(id)) renderer.domElement.releasePointerCapture(id);
+    }
+    touches.clear();
+    scrollingPage = false;
+    scrollRemainder = 0;
+  }
+
   function moveCamera(update) {
     if (!available() || !controls) return false;
     const previousTarget = tween?.to.clone();
@@ -185,19 +285,20 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     actions[event.key]();
   }
 
-  function cancelInteraction() {
+  function cancelInteraction(keepPosition = false) {
     tween = null;
     gesture = false;
     userSession = false;
     userChanged = false;
     dirty = false;
-    clearDamping();
+    clearDamping(keepPosition);
   }
 
   // Reset is a local preview operation. The caller sends the existing Front
   // view command; no camera.orbit sample (including a final sample) is emitted.
   function reset() {
     if (!available() || !controls) return false;
+    clearTouches();
     cancelInteraction();
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null;
@@ -221,7 +322,10 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   function setDisabled(value) {
     if (disposed) return;
     disabled = Boolean(value);
-    if (disabled) cancelInteraction();
+    if (disabled) {
+      clearTouches();
+      cancelInteraction();
+    }
     syncControls();
     invalidate();
   }
@@ -258,6 +362,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   function visibilityChanged() {
     if (disposed) return;
     if (document.hidden) {
+      clearTouches();
       cancelInteraction();
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
@@ -306,6 +411,13 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     for (const resource of geometries) resource.dispose();
     for (const resource of materials) resource.dispose();
     if (renderer) {
+      clearTouches();
+      const canvas = renderer.domElement;
+      canvas.removeEventListener("pointerdown", touchDown, true);
+      canvas.removeEventListener("pointermove", touchMove, true);
+      canvas.removeEventListener("pointerup", touchEnd, true);
+      canvas.removeEventListener("pointercancel", touchEnd, true);
+      canvas.removeEventListener("lostpointercapture", touchEnd, true);
       renderer.domElement.removeEventListener("webglcontextlost", contextLost);
       renderer.dispose();
       renderer.forceContextLoss();
@@ -323,11 +435,17 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     renderer.domElement.setAttribute("aria-hidden", "true");
     element.appendChild(renderer.domElement);
 
+    const canvas = renderer.domElement;
+    canvas.addEventListener("pointerdown", touchDown, true);
+    canvas.addEventListener("pointermove", touchMove, true);
+    canvas.addEventListener("pointerup", touchEnd, true);
+    canvas.addEventListener("pointercancel", touchEnd, true);
+    canvas.addEventListener("lostpointercapture", touchEnd, true);
     controls = new OrbitControls(camera, renderer.domElement);
     controlsConnected = true;
     controls.target.set(0, 0, 0);
     controls.enablePan = false;
-    controls.enableZoom = false; // The page keeps wheel scrolling; use + / −.
+    controls.enableZoom = false; // Mouse wheel scrolls the page; pinch uses dollyOut directly.
     controls.enableDamping = !media.matches;
     controls.dampingFactor = 0.12;
     controls.rotateSpeed = 0.6;

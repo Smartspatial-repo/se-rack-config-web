@@ -8,7 +8,7 @@ const MODELS = ["gb300", "vera-rubin"];
 const slotActions = [
   { id: "generic-server", label: "Generic server", offset: 1 },
   { id: "generic-switch", label: "Generic switch", offset: 2 },
-  { id: "ocp-powershell", label: "OCP PowerShell", offset: 3 },
+  // { id: "ocp-powershell", label: "OCP PowerShell", offset: 3 },
   { id: null, label: "Clear slot", offset: 4 },
   { id: "cpu", label: "CPU", offset: 5 },
   { id: "rack-brace", label: "Rack Brace", offset: 6 },

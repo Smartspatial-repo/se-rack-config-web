@@ -19,7 +19,7 @@ import RackViewControls from "./RackViewControls";
 import RackOrbitPanel from "./RackOrbitPanel";
 import VoiceAgentPanel from "./VoiceAgentPanel";
 import RackOptionsTransition from "./RackOptionsTransition";
-import { DEFAULT_RACK, DEFAULT_SHARED_CONTROLS } from "./constants";
+import { DEFAULT_RACK, DEFAULT_SHARED_CONTROLS, SLOT_IDS } from "./constants";
 
 const MemoRackHeader = memo(RackHeader);
 const MemoSharedControls = memo(SharedControls);
@@ -130,14 +130,7 @@ const RackControlsArea = memo(function RackControlsArea({
     let patch;
     switch (command.type) {
       case "advanced-sx.cdu.set":
-        patch = step.slots
-          ? { slots: step.slots }
-          : {
-              controls: {
-                ...current.current.controls,
-                highlightHidden: command.enabled,
-              },
-            };
+        patch = { slots: step.slots };
         delivery = await onCduChange?.(command.enabled);
         break;
       case "advanced-sx.slot.set":
@@ -313,10 +306,9 @@ const RackControlsArea = memo(function RackControlsArea({
       selectedSlot={selectedSlot}
       onSlotSelect={handleSlotSelect}
       onSlotChange={handleSlotChange}
-      onCduChange={onSlotChange && !onCduChange ? undefined : handleCduChange}
       busy={editing || switching}
     />
-  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect, handleCduChange, editing, switching, onSlotChange, onCduChange]);
+  ), [slots, selectedSlot, handleSlotChange, handleSlotSelect, editing, switching]);
 
   return (
     <>
@@ -346,7 +338,14 @@ const RackControlsArea = memo(function RackControlsArea({
       </Box>
 
       <Box inert={editing || switching || undefined} sx={{ mt: 4 }}>
-        <MemoSharedControls value={controls ?? configuration.controls} onChange={handleControlsChange} selectedRack={selectedRack} />
+        <MemoSharedControls
+          value={controls ?? configuration.controls}
+          onChange={handleControlsChange}
+          selectedRack={selectedRack}
+          cduEnabled={slots[SLOT_IDS[0]] === "cdu"}
+          onCduChange={onSlotChange && !onCduChange ? undefined : handleCduChange}
+          busy={editing || switching || controlsDisabled}
+        />
       </Box>
       <Box inert={switching || undefined} sx={{ mt: 3 }}>
         <RackOrbitPanel onCameraChange={onCameraChange} onReset={handleResetView} disabled={controlsDisabled} />

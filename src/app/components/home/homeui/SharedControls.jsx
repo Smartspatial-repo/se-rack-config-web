@@ -46,7 +46,15 @@ function ControlHeading({ children, icon, id }) {
   );
 }
 
-function SwitchRow({ label, checked, onChange, divider = false }) {
+function SwitchRow({
+  label,
+  checked,
+  onChange,
+  divider = false,
+  description,
+  disabled = false,
+}) {
+  const descriptionId = useId();
   return (
     <Stack
       component="label"
@@ -56,81 +64,93 @@ function SwitchRow({ label, checked, onChange, divider = false }) {
         alignItems: "center",
         gap: 2,
         minHeight: 54,
-        cursor: "pointer",
+        cursor: disabled ? "default" : "pointer",
         borderBottom: divider ? 1 : 0,
         borderColor: "divider",
       }}
     >
-      <Typography component="span" variant="body" sx={{ whiteSpace: "nowrap" }}>
-        {label}
-      </Typography>
+      <Box component="span" sx={{ minWidth: 0, py: 1 }}>
+        <Typography component="span" variant="body">
+          {label}
+        </Typography>
+        {description && (
+          <Typography
+            component="span"
+            id={descriptionId}
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: "block", mt: 0.5 }}
+          >
+            {description}
+          </Typography>
+        )}
+      </Box>
       <Switch
         checked={checked}
+        disabled={disabled}
         onChange={(_, next) => onChange(next)}
-        slotProps={{ input: { "aria-label": label } }}
+        slotProps={{
+          input: {
+            role: "switch",
+            "aria-label": label,
+            "aria-describedby": description ? descriptionId : undefined,
+          },
+        }}
+        sx={{ flexShrink: 0 }}
       />
     </Stack>
   );
 }
 
-function VisibilityRow({ label, hidden, onChange, showLabel = true }) {
+function VisibilityRow({ hidden, onChange, disabled = false }) {
   return (
-    <Box sx={{ mt: 1 }}>
-      {showLabel ? (
-        <Typography component="p" variant="body" sx={{ mb: 1.25 }}>
-          {label}
-        </Typography>
-      ) : null}
-      <ToggleButtonGroup
-        exclusive
-        value={hidden ? "hidden" : "visible"}
-        sx={(theme) => ({
-          width: "100%",
-          mt: showLabel ? 0 : 0.25,
-          "& .MuiToggleButton-root": {
-            position: "relative",
-            zIndex: 0,
-            flex: 1,
-            minHeight: 42,
-            gap: 0.75,
-            textTransform: "none",
-            whiteSpace: "nowrap",
-            color: "text.secondary",
-            borderColor: "divider",
-            transition: theme.transitions.create(
-              ["background-color", "border-color", "color"],
-              { duration: 120 },
-            ),
-            "&.Mui-selected": {
-              zIndex: 1,
-              borderColor: "primary.main",
-              color: "primary.main",
-              backgroundColor: alpha(theme.palette.primary.main, 0.12),
-              "&:hover": {
-                backgroundColor: alpha(theme.palette.primary.main, 0.18),
-              },
-            },
-            "&.Mui-focusVisible": {
-              zIndex: 2,
-              outline: `2px solid ${theme.palette.primary.main}`,
-              outlineOffset: 2,
+    <ToggleButtonGroup
+      exclusive
+      value={hidden ? "hidden" : "visible"}
+      sx={(theme) => ({
+        width: "100%",
+        "& .MuiToggleButton-root": {
+          position: "relative",
+          zIndex: 0,
+          flex: 1,
+          minHeight: 42,
+          gap: 0.75,
+          textTransform: "none",
+          color: "text.secondary",
+          borderColor: "divider",
+          transition: theme.transitions.create(
+            ["background-color", "border-color", "color"],
+            { duration: 120 },
+          ),
+          "&.Mui-selected": {
+            zIndex: 1,
+            borderColor: "primary.main",
+            color: "primary.main",
+            backgroundColor: alpha(theme.palette.primary.main, 0.12),
+            "&:hover": {
+              backgroundColor: alpha(theme.palette.primary.main, 0.18),
             },
           },
-          "@media (prefers-reduced-motion: reduce)": {
-            "& .MuiToggleButton-root": { transition: "none" },
-          },
-        })}
+        },
+      })}
+    >
+      <ToggleButton
+        value="hidden"
+        disabled={disabled}
+        onClick={() => onChange(true)}
       >
-        <ToggleButton value="hidden" onClick={() => onChange(true)}>
-          <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />
-          Hide
-        </ToggleButton>
-        <ToggleButton value="visible" onClick={() => onChange(false)}>
-          <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
-          Unhide
-        </ToggleButton>
-      </ToggleButtonGroup>
-    </Box>
+        <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />
+        Hide
+      </ToggleButton>
+      <ToggleButton
+        value="visible"
+        disabled={disabled}
+        onClick={() => onChange(false)}
+      >
+        <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
+        Unhide
+      </ToggleButton>
+    </ToggleButtonGroup>
   );
 }
 
@@ -166,10 +186,14 @@ export const SharedControls = memo(function SharedControls({
   value,
   onChange,
   selectedRack = null,
+  cduEnabled = false,
+  onCduChange,
+  busy = false,
 }) {
   const id = useId();
   const showAll = selectedRack !== "mgx";
-  const showAdvancedSXControls = selectedRack === "advanced-sx";
+  const showCdu = selectedRack === "advanced-sx";
+  const showHighlighter = selectedRack === "advanced-sx";
   const setToggle = (key, checked) =>
     onChange({ ...value, [key]: checked }, { key, value: checked });
 
@@ -195,24 +219,45 @@ export const SharedControls = memo(function SharedControls({
             xs: "minmax(0, 1fr)",
             md: showAll
               ? "minmax(0, 1fr) minmax(0, 1fr)"
-              : "minmax(0, 1fr) minmax(0, 0fr)",
+              : "minmax(0, 0fr) minmax(0, 1fr)",
           },
           alignItems: "start",
-          gap: showAll ? { xs: 2.5, md: 3.25 } : 0,
+          gap: showAll ? { xs: 2, md: 3 } : 0,
           minWidth: 0,
           transition: `grid-template-columns ${MOTION}, gap ${MOTION}`,
           "@media (prefers-reduced-motion: reduce)": { transition: "none" },
         }}
       >
-        <Box role="group" aria-labelledby={`${id}-pdu`} sx={cardStyles}>
-          <ControlHeading id={`${id}-pdu`} icon={<Plug strokeWidth={1.75} />}>
-            PDU
+        <AnimatedControl show={showAll}>
+          <Box role="group" aria-labelledby={`${id}-power`} sx={cardStyles}>
+            <ControlHeading
+              id={`${id}-power`}
+              icon={<Plug strokeWidth={1.75} />}
+            >
+              POWER
+            </ControlHeading>
+            <SwitchRow
+              label="rPDU"
+              checked={value.rpdu}
+              onChange={(checked) => setToggle("rpdu", checked)}
+              disabled={busy || !showAll}
+            />
+          </Box>
+        </AnimatedControl>
+
+        <Box role="group" aria-labelledby={`${id}-cooling`} sx={cardStyles}>
+          <ControlHeading
+            id={`${id}-cooling`}
+            icon={<Snowflake strokeWidth={1.75} />}
+          >
+            Cooling
           </ControlHeading>
           <AnimatedControl show={showAll}>
             <SwitchRow
-              label="RPDU"
-              checked={value.rpdu}
-              onChange={(checked) => setToggle("rpdu", checked)}
+              label="Rear Door Heat Exchanger"
+              checked={value.heatExchanger}
+              onChange={(checked) => setToggle("heatExchanger", checked)}
+              disabled={busy || !showAll}
               divider
             />
           </AnimatedControl>
@@ -220,37 +265,44 @@ export const SharedControls = memo(function SharedControls({
             label="Manifolds"
             checked={value.manifolds}
             onChange={(checked) => setToggle("manifolds", checked)}
+            disabled={busy}
+            divider={showCdu}
           />
-        </Box>
-
-        <AnimatedControl show={showAll}>
-          <Box role="group" aria-labelledby={`${id}-cooling`} sx={cardStyles}>
-            <ControlHeading
-              id={`${id}-cooling`}
-              icon={<Snowflake strokeWidth={1.75} />}
-            >
-              Cooling
-            </ControlHeading>
+          <AnimatedControl show={showCdu}>
             <SwitchRow
-              label="Heat exchanger"
-              checked={value.heatExchanger}
-              onChange={(checked) => setToggle("heatExchanger", checked)}
+              label="In-rack CDU"
+              checked={cduEnabled}
+              onChange={onCduChange}
+              disabled={busy || !showCdu || !onCduChange}
+              description={
+                cduEnabled
+                  ? "Occupies U01–U04. Turn off to free these slots."
+                  : "Turning on In-rack CDU replaces equipment overlapping U01–U04."
+              }
             />
-          </Box>
-        </AnimatedControl>
-        <AnimatedControl show={showAdvancedSXControls}>
-          <Box role="group" aria-labelledby={`${id}-highlight`} sx={cardStyles}>
+          </AnimatedControl>
+        </Box>
+        <AnimatedControl
+          show={showHighlighter}
+          sx={{
+            gridColumn: { xs: "auto", md: "1 / -1" },
+          }}
+        >
+          <Box
+            role="group"
+            aria-labelledby={`${id}-highlighter`}
+            sx={cardStyles}
+          >
             <ControlHeading
-              id={`${id}-highlight`}
+              id={`${id}-highlighter`}
               icon={<Eye strokeWidth={1.75} />}
             >
               Highlighter visibility
             </ControlHeading>
             <VisibilityRow
-              label="Highlighter visibility"
               hidden={value.highlightHidden}
               onChange={(hidden) => setToggle("highlightHidden", hidden)}
-              showLabel={false}
+              disabled={busy || !showHighlighter}
             />
           </Box>
         </AnimatedControl>

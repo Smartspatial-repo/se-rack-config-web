@@ -10,7 +10,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { ChevronLeft, ChevronRight, CircleHelp, Hand, Minus, MousePointer2, Move3D, Plus, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleHelp, Hand, Minus, MousePointer2, Move3D, MoveDiagonal, Plus, RotateCcw } from "lucide-react";
 import { alpha } from "@mui/material/styles";
 
 // Dismiss once per page load. A full refresh starts a new module instance,
@@ -19,6 +19,7 @@ let guideDismissedInMemory = false;
 
 // Match the input device without changing the server-rendered markup.
 const TOUCH_INPUT = "@media (hover: none), (pointer: coarse)";
+const HAS_TOUCH = "@media (any-pointer: coarse), (pointer: coarse)";
 
 function DragGesture() {
   return (
@@ -204,7 +205,10 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
         </Tooltip>
       </Stack>
       <Typography id={`${id}-help`} variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Drag to rotate the view. Use + and − to zoom.
+        <Box component="span" sx={{ [HAS_TOUCH]: { display: "none" } }}>Drag to rotate the view. Use + and − to zoom.</Box>
+        <Box component="span" sx={{ display: "none", [HAS_TOUCH]: { display: "inline" } }}>
+          Drag with one finger to rotate, pinch with two to zoom, or swipe with three to scroll the page.
+        </Box>
       </Typography>
 
       <Box
@@ -304,6 +308,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
               gap: { xs: 2, sm: 2.5 }, p: { xs: 2, sm: 3 },
+              [HAS_TOUCH]: { gap: 1, p: 1.5 },
               borderRadius: "inherit", textAlign: "center",
               bgcolor: alpha(theme.palette.background.default, 0.94),
               backdropFilter: "blur(8px)",
@@ -323,19 +328,26 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
                 </Box>
               </Stack>
               <Stack spacing={1.5} sx={{ alignItems: "center", minWidth: 0 }}>
-                <Stack direction="row" spacing={0.75} aria-hidden="true" sx={{ alignItems: "center", height: 64 }}>
+                <Stack direction="row" spacing={0.75} aria-hidden="true" sx={{ alignItems: "center", height: 64, [HAS_TOUCH]: { display: "none" } }}>
                   {[Minus, Plus].map((Icon, index) => (
                     <Box key={index} sx={{ display: "grid", placeItems: "center", width: 36, height: 36, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover", color: "primary.light" }}>
                       <Icon size={19} strokeWidth={1.75} />
                     </Box>
                   ))}
                 </Stack>
+                <Box aria-hidden="true" sx={{ display: "none", [HAS_TOUCH]: { display: "grid" }, placeItems: "center", height: 64, color: "primary.light" }}>
+                  <MoveDiagonal size={32} strokeWidth={1.6} />
+                </Box>
                 <Box sx={{ minHeight: 40 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>− / +</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, [HAS_TOUCH]: { display: "none" } }}>− / +</Typography>
+                  <Typography variant="body2" sx={{ display: "none", fontWeight: 600, [HAS_TOUCH]: { display: "block" } }}>Two-finger pinch</Typography>
                   <Typography variant="caption" color="text.secondary">to zoom out / in</Typography>
                 </Box>
               </Stack>
             </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ display: "none", [HAS_TOUCH]: { display: "block" } }}>
+              Swipe up or down with three fingers to scroll the page.
+            </Typography>
             <Button
               ref={gotItButton}
               variant="contained"

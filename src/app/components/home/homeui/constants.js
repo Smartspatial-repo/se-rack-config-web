@@ -17,8 +17,8 @@ export const MGX_SYSTEMS = [
 export const EQUIPMENT_OPTIONS = [
   { id: "generic-server", label: "Generic server" },
   { id: "generic-switch", label: "Generic switch" },
-  { id: "ocp-powershell", label: "OCP PowerShell" },
-  { id: "cpu", label: "CPU" },
+  // { id: "ocp-powershell", label: "OCP PowerShell" },
+  { id: "cpu", label: "UPS" },
   { id: "rack-brace", label: "Rack Brace" },
 ];
 
