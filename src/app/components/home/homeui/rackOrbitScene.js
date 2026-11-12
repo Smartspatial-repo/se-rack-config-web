@@ -3,6 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const MIN_DISTANCE = 3;
 const MAX_DISTANCE = 12;
+const MAX_VERTICAL_PAN = 0.30; // Metres above or below the rack's centre.
 const MIN_POLAR = 0.2;
 const MAX_POLAR = Math.PI / 2 + 0.18;
 const INITIAL_FOV = 40;
@@ -40,8 +41,8 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   let hasSize = false;
   const touches = new Map();
   let pinchDistance = 0;
-  let scrollingPage = false;
-  let scrollRemainder = 0;
+  let verticalPanActive = false;
+  let panPixels = 0;
 
   const geometry = (value) => { geometries.add(value); return value; };
   const material = (value) => { materials.add(value); return value; };
@@ -89,7 +90,8 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     framePosition.copy(camera.position);
     frameTarget.copy(controls.target);
     frameQuaternion.copy(camera.quaternion);
-    if (!scrollingPage && touches.size === 2) applyPinch();
+    if (panPixels !== 0) applyVerticalPan();
+    if (!verticalPanActive && touches.size === 2) applyPinch();
     if (tween && available()) {
       const progress = Math.min(1, (now - tween.startedAt) / tween.duration);
       const eased = 1 - (1 - progress) ** 3;
@@ -157,28 +159,37 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     pinchDistance = distance;
   }
 
+  function applyVerticalPan() {
+    const height = Math.max(1, renderer.domElement.clientHeight);
+    // A quarter of the preview height moves from centre to one limit.
+    const nextY = THREE.MathUtils.clamp(
+      controls.target.y + (panPixels / height) * 4 * MAX_VERTICAL_PAN,
+      -MAX_VERTICAL_PAN, MAX_VERTICAL_PAN,
+    );
+    panPixels = 0;
+    // Translate the camera and the orbit centre together so the rack follows
+    // the fingers without a change in viewing angle or zoom distance.
+    camera.position.y += nextY - controls.target.y;
+    controls.target.y = nextY;
+  }
+
   function touchDown(event) {
     if (event.pointerType !== "touch" || !available()) return;
     // Only the preview owns touch. OrbitControls still owns mouse/pen drags.
     event.stopImmediatePropagation();
     if (touches.has(event.pointerId)) return;
-    if (!scrollingPage && touches.size === 2) applyPinch();
+    if (!verticalPanActive && touches.size === 2) applyPinch();
     touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     renderer.domElement.setPointerCapture(event.pointerId);
-    if (scrollingPage) return;
+    if (verticalPanActive) return;
     if (touches.size === 1) {
       beginGesture();
     } else if (touches.size === 2) {
       clearDamping(true);
       pinchDistance = fingerDistance();
     } else {
-      scrollingPage = true;
-      // Settle any actual camera movement before switching to page scrolling.
-      // A stationary three-finger contact never creates a camera packet.
-      const finishCamera = userSession && (dirty || userChanged);
-      cancelInteraction(true);
-      if (finishCamera) onCameraChange?.(snapshot(), { final: true });
-      invalidate();
+      verticalPanActive = true;
+      clearDamping(true);
     }
   }
 
@@ -190,16 +201,11 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     const dy = event.clientY - point.y;
     point.x = event.clientX;
     point.y = event.clientY;
-    if (scrollingPage) {
-      if (touches.size === 3) {
-        // One pointer event moves the three-finger centroid by one third
-        // of its displacement. Accumulate fractions for slow swipes.
-        scrollRemainder -= dy / 3;
-        const pixels = Math.trunc(scrollRemainder);
-        if (pixels !== 0) {
-          window.scrollBy({ top: pixels, behavior: "instant" });
-          scrollRemainder -= pixels;
-        }
+    if (verticalPanActive) {
+      if (touches.size === 3 && dy !== 0) {
+        // Collect the average vertical displacement across the three fingers.
+        panPixels += dy / 3;
+        invalidate();
       }
     } else if (touches.size === 1) {
       const radians = 2 * Math.PI * controls.rotateSpeed / Math.max(1, renderer.domElement.clientHeight);
@@ -216,12 +222,11 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     if (event.pointerType !== "touch") return;
     event.stopImmediatePropagation();
     if (!touches.has(event.pointerId)) return;
-    if (!scrollingPage && touches.size === 2) applyPinch();
+    if (!verticalPanActive && touches.size === 2) applyPinch();
     touches.delete(event.pointerId);
-    scrollRemainder = 0;
     if (touches.size === 0) {
-      if (!scrollingPage) endGesture();
-      scrollingPage = false;
+      verticalPanActive = false;
+      endGesture();
     }
   }
 
@@ -230,8 +235,8 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
       if (renderer.domElement.hasPointerCapture(id)) renderer.domElement.releasePointerCapture(id);
     }
     touches.clear();
-    scrollingPage = false;
-    scrollRemainder = 0;
+    verticalPanActive = false;
+    panPixels = 0;
   }
 
   function moveCamera(update) {

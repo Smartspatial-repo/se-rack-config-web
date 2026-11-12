@@ -130,7 +130,14 @@ const RackControlsArea = memo(function RackControlsArea({
     let patch;
     switch (command.type) {
       case "advanced-sx.cdu.set":
-        patch = { slots: step.slots };
+        patch = step.slots
+          ? { slots: step.slots }
+          : {
+            controls: {
+              ...current.current.controls,
+              highlightHidden: command.enabled,
+            },
+          };
         delivery = await onCduChange?.(command.enabled);
         break;
       case "advanced-sx.slot.set":

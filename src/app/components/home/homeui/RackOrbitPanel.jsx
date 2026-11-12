@@ -207,7 +207,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
       <Typography id={`${id}-help`} variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         <Box component="span" sx={{ [HAS_TOUCH]: { display: "none" } }}>Drag to rotate the view. Use + and − to zoom.</Box>
         <Box component="span" sx={{ display: "none", [HAS_TOUCH]: { display: "inline" } }}>
-          Drag with one finger to rotate, pinch with two to zoom, or swipe with three to scroll the page.
+          Drag with one finger to rotate, pinch with two to zoom, or drag with three to move the rack view up or down.
         </Box>
       </Typography>
 
@@ -346,7 +346,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
               </Stack>
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ display: "none", [HAS_TOUCH]: { display: "block" } }}>
-              Swipe up or down with three fingers to scroll the page.
+              Drag up or down with three fingers to shift the rack in the preview. Reset returns it to center.
             </Typography>
             <Button
               ref={gotItButton}
