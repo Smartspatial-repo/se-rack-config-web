@@ -9,6 +9,18 @@ const MAX_POLAR = Math.PI / 2 + 0.18;
 const INITIAL_FOV = 40;
 // Both entry and Reset face the +Z server panels at the existing viewing distance.
 const FRONT_POSITION = new THREE.Vector3(0, 0, Math.hypot(3.2, 2.1, 4.4));
+// Three's spherical azimuth starts at +Z; 180° faces the back of the rack.
+// The labels refer to the narrow side visible on screen in each reference.
+function rearPosition(yawFromRear, elevation, distance) {
+  return new THREE.Vector3().setFromSphericalCoords(
+    distance,
+    THREE.MathUtils.degToRad(90 - elevation),
+    THREE.MathUtils.degToRad(180 + yawFromRear),
+  );
+}
+
+const REAR_RIGHT_POSITION = rearPosition(37, 10.4, 5.76);
+const REAR_LEFT_POSITION = rearPosition(-32, 8.8, 6.02);
 
 // This helper is loaded by the client component after mount. One preview unit
 // represents one metre; the MQTT layer maps these vectors to Unreal centimetres.
@@ -299,9 +311,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     clearDamping(keepPosition);
   }
 
-  // Reset is a local preview operation. The caller sends the existing Front
-  // view command; no camera.orbit sample (including a final sample) is emitted.
-  function reset() {
+  function applyView(position) {
     if (!available() || !controls) return false;
     clearTouches();
     cancelInteraction();
@@ -311,7 +321,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
     controlsConnected = false;
 
     suppressChanges = true;
-    camera.position.copy(FRONT_POSITION);
+    camera.position.copy(position);
     controls.target.set(0, 0, 0);
     camera.fov = INITIAL_FOV;
     camera.zoom = 1;
@@ -321,6 +331,19 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
 
     syncControls();
     invalidate();
+    return true;
+  }
+
+  // Reset publishes the existing Front view command in the calling component.
+  function reset() {
+    return applyView(FRONT_POSITION);
+  }
+
+  function setRearTilt(side) {
+    if (side !== "left" && side !== "right") return false;
+    const position = side === "right" ? REAR_RIGHT_POSITION : REAR_LEFT_POSITION;
+    if (!applyView(position)) return false;
+    onCameraChange?.(snapshot(), { final: true });
     return true;
   }
 
@@ -519,7 +542,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
       window.addEventListener("resize", resize);
     }
     resize();
-    return { zoom, reset, setDisabled, dispose };
+    return { zoom, reset, setRearTilt, setDisabled, dispose };
   } catch (error) {
     dispose();
     throw error;

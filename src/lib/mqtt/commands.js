@@ -169,7 +169,7 @@ export function describeRackCommand(command) {
       const names = {
         "generic-server": "Generic server",
         "generic-switch": "Generic switch",
-        // "ocp-powershell": "OCP PowerShell",
+        "ocp-powershell": "PowerShell",
         cpu: "UPS",
         "rack-brace": "Rack Brace",
       };

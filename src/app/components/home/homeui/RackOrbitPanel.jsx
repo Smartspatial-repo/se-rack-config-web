@@ -174,6 +174,11 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
     onReset?.();
   };
 
+  const handleRearTilt = (side) => {
+    if (inactive || isDisabled.current) return;
+    scene.current?.setRearTilt(side);
+  };
+
   return (
     <Box
       component="section"
@@ -210,6 +215,28 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
           Drag with one finger to rotate, pinch with two to zoom, or drag with three to move the rack view up or down.
         </Box>
       </Typography>
+
+      <Stack
+        role="group"
+        aria-label="Rear camera views"
+        direction="row"
+        useFlexGap
+        sx={{ flexWrap: "wrap", gap: 1, mb: 1.5 }}
+      >
+        {["right", "left"].map((side) => (
+          <Button
+            key={side}
+            type="button"
+            variant="outlined"
+            size="small"
+            onClick={() => handleRearTilt(side)}
+            disabled={inactive}
+            sx={{ minHeight: 44, px: 1.5, flex: { xs: "1 1 auto", sm: "0 0 auto" }, borderColor: "divider" }}
+          >
+            {side === "right" ? "Behind right tilt" : "Behind left tilt"}
+          </Button>
+        ))}
+      </Stack>
 
       <Box
         ref={frame}
