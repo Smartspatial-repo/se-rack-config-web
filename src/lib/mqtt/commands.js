@@ -1,5 +1,5 @@
 // Shared, credential-free contract used by the UI, API validation, and Unreal docs.
-import { getCommandLocation, getLocationCommand } from "./locationMap.js";
+import { getCommandLocation, getLocationCommand, RACK_VIEW_LABELS } from "./locationMap.js";
 
 export { getCommandLocation, getLocationCommand } from "./locationMap.js";
 
@@ -60,11 +60,11 @@ export function parseRackCommand(input) {
       command.enabled = input.enabled;
       break;
     case "rack.view.set":
-      command.view = oneOf(input.view, ["back", "front"], "rack view");
+      getCommandLocation(input);
+      command.view = input.view;
       break;
     case "rack.visibility.set":
-      if (typeof input.hidden !== "boolean")
-        invalid("Rack hidden must be a boolean.");
+      if (typeof input.hidden !== "boolean") invalid("Rack hidden must be a boolean.");
       command.hidden = input.hidden;
       break;
     case "rack.highlight.set":
@@ -179,12 +179,7 @@ export function describeRackCommand(command) {
     }
     case "advanced-sx.cdu.set":
       return command.enabled ? "In-rack CDU on" : "In-rack CDU off";
-    case "rack.view.set":
-      return command.view === "front"
-        ? "Front view selected"
-        : "Back view selected";
-    case "rack.visibility.set":
-      return command.hidden ? "Hide rack" : "Unhide rack";
+      case "rack.view.set": return `${RACK_VIEW_LABELS[command.view]} selected`;
     case "rack.highlight.set":
       return command.hidden ? "Hide highlighter" : "Unhide highlighter";
     case "accessory.set": {

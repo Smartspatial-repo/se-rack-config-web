@@ -342,9 +342,7 @@ export function createRackOrbitScene(element, { onCameraChange, onFatalError }) 
   function setRearTilt(side) {
     if (side !== "left" && side !== "right") return false;
     const position = side === "right" ? REAR_RIGHT_POSITION : REAR_LEFT_POSITION;
-    if (!applyView(position)) return false;
-    onCameraChange?.(snapshot(), { final: true });
-    return true;
+    return applyView(position);
   }
 
   function setDisabled(value) {

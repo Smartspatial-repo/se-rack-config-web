@@ -4,6 +4,13 @@
 // Keep actions explicit (ON and OFF, set and clear), never toggle on receipt.
 
 const RACKS = ["mgx", "advanced-sx"];
+export const RACK_VIEW_LABELS = Object.freeze({
+  back: "Back view",
+  front: "Front view",
+  "behind-right-tilt": "Behind right tilt",
+  "behind-left-tilt": "Behind left tilt",
+});
+const RACK_VIEWS = Object.keys(RACK_VIEW_LABELS);
 const MODELS = ["gb300", "vera-rubin"];
 const slotActions = [
   { id: "generic-server", label: "Generic server", offset: 1 },
@@ -31,16 +38,26 @@ function oneOf(value, values, field) {
 
 function slot(value, nullable = false) {
   if (nullable && value === null) return null;
-  if (typeof value !== "string" || value !== value.trim() || !SLOT_PATTERN.test(value)) invalid("Invalid slot ID.");
+  if (
+    typeof value !== "string" ||
+    value !== value.trim() ||
+    !SLOT_PATTERN.test(value)
+  )
+    invalid("Invalid slot ID.");
   return value;
 }
 
 // Keys use an explicit field order. Optional HTTP command IDs are tracking data,
 // not part of the semantic action or the MQTT {location: number} payload.
 function commandKey(command) {
-  if (!command || typeof command !== "object" || Array.isArray(command)) invalid("A command object is required.");
-  if (Object.hasOwn(command, "commandId") && (typeof command.commandId !== "string"
-    || !/^[A-Za-z0-9_-]{8,80}$/.test(command.commandId))) invalid("Invalid command ID.");
+  if (!command || typeof command !== "object" || Array.isArray(command))
+    invalid("A command object is required.");
+  if (
+    Object.hasOwn(command, "commandId") &&
+    (typeof command.commandId !== "string" ||
+      !/^[A-Za-z0-9_-]{8,80}$/.test(command.commandId))
+  )
+    invalid("Invalid command ID.");
 
   let fields;
   let values;
@@ -55,22 +72,28 @@ function commandKey(command) {
       break;
     case "rack.view.set":
       fields = ["view"];
-      values = [oneOf(command.view, ["back", "front"], "rack view")];
+      values = [oneOf(command.view, RACK_VIEWS, "rack view")];
       break;
     case "rack.visibility.set":
       fields = ["hidden"];
-      if (typeof command.hidden !== "boolean") invalid("Rack hidden must be a boolean.");
+      if (typeof command.hidden !== "boolean")
+        invalid("Rack hidden must be a boolean.");
       values = [command.hidden];
       break;
     case "rack.highlight.set":
       fields = ["hidden"];
-      if (typeof command.hidden !== "boolean") invalid("Highlight hidden must be a boolean.");
+      if (typeof command.hidden !== "boolean")
+        invalid("Highlight hidden must be a boolean.");
       values = [command.hidden];
       break;
     case "accessory.set":
       fields = ["accessory", "enabled"];
-      if (typeof command.enabled !== "boolean") invalid("Accessory enabled must be a boolean.");
-      values = [oneOf(command.accessory, ACCESSORIES, "accessory"), command.enabled];
+      if (typeof command.enabled !== "boolean")
+        invalid("Accessory enabled must be a boolean.");
+      values = [
+        oneOf(command.accessory, ACCESSORIES, "accessory"),
+        command.enabled,
+      ];
       break;
     case "advanced-sx.slot.focus":
       fields = ["slotId"];
@@ -78,27 +101,39 @@ function commandKey(command) {
       break;
     case "advanced-sx.slot.set":
       fields = ["slotId", "equipmentId"];
-      values = [slot(command.slotId), oneOf(command.equipmentId, EQUIPMENT, "equipment")];
+      values = [
+        slot(command.slotId),
+        oneOf(command.equipmentId, EQUIPMENT, "equipment"),
+      ];
       if (command.equipmentId === "cpu" && command.slotId === TOP_SLOT) {
         invalid("A CPU needs a second unit above the selected slot.");
       }
       break;
     case "advanced-sx.cdu.set":
       fields = ["enabled"];
-      if (typeof command.enabled !== "boolean") invalid("CDU enabled must be a boolean.");
+      if (typeof command.enabled !== "boolean")
+        invalid("CDU enabled must be a boolean.");
       values = [command.enabled];
       break;
     default:
       invalid("Unsupported command type.");
   }
   const allowed = new Set(["type", "commandId", ...fields]);
-  if (!Object.hasOwn(command, "type") || fields.some((field) => !Object.hasOwn(command, field))
-    || Object.keys(command).some((key) => !allowed.has(key))) invalid("Unexpected or missing command fields.");
+  if (
+    !Object.hasOwn(command, "type") ||
+    fields.some((field) => !Object.hasOwn(command, field)) ||
+    Object.keys(command).some((key) => !allowed.has(key))
+  )
+    invalid("Unexpected or missing command fields.");
   return JSON.stringify([command.type, ...values]);
 }
 
 function option(location, label, command) {
-  return Object.freeze({ location, label, command: Object.freeze({ ...command }) });
+  return Object.freeze({
+    location,
+    label,
+    command: Object.freeze({ ...command }),
+  });
 }
 
 const options = [
@@ -106,21 +141,59 @@ const options = [
   option(2, "GB300", { type: "mgx.model.select", model: "gb300" }),
   option(3, "Vera Rubin", { type: "mgx.model.select", model: "vera-rubin" }),
   option(4, "Advanced SX", { type: "rack.select", rack: "advanced-sx" }),
-  option(5, "Back view", { type: "rack.view.set", view: "back" }),
-  option(6, "Front view", { type: "rack.view.set", view: "front" }),
-  option(7, "RPDU on", { type: "accessory.set", accessory: "rpdu", enabled: true }),
-  option(8, "RPDU off", { type: "accessory.set", accessory: "rpdu", enabled: false }),
-  option(9, "Manifolds on", { type: "accessory.set", accessory: "manifolds", enabled: true }),
-  option(10, "Manifolds off", { type: "accessory.set", accessory: "manifolds", enabled: false }),
-  option(11, "Heat exchanger on", { type: "accessory.set", accessory: "heatExchanger", enabled: true }),
-  option(12, "Heat exchanger off", { type: "accessory.set", accessory: "heatExchanger", enabled: false }),
-  option(13, "Close slot selection", { type: "advanced-sx.slot.focus", slotId: null }),
+  option(5, RACK_VIEW_LABELS.back, { type: "rack.view.set", view: "back" }),
+  option(6, RACK_VIEW_LABELS.front, { type: "rack.view.set", view: "front" }),
+  option(7, "RPDU on", {
+    type: "accessory.set",
+    accessory: "rpdu",
+    enabled: true,
+  }),
+  option(8, "RPDU off", {
+    type: "accessory.set",
+    accessory: "rpdu",
+    enabled: false,
+  }),
+  option(9, "Manifolds on", {
+    type: "accessory.set",
+    accessory: "manifolds",
+    enabled: true,
+  }),
+  option(10, "Manifolds off", {
+    type: "accessory.set",
+    accessory: "manifolds",
+    enabled: false,
+  }),
+  option(11, "Heat exchanger on", {
+    type: "accessory.set",
+    accessory: "heatExchanger",
+    enabled: true,
+  }),
+  option(12, "Heat exchanger off", {
+    type: "accessory.set",
+    accessory: "heatExchanger",
+    enabled: false,
+  }),
+  option(13, "Close slot selection", {
+    type: "advanced-sx.slot.focus",
+    slotId: null,
+  }),
   option(14, "Hide rack", { type: "rack.visibility.set", hidden: true }),
   option(15, "Unhide rack", { type: "rack.visibility.set", hidden: false }),
   option(16, "Hide highlighter", { type: "rack.highlight.set", hidden: true }),
-  option(17, "Unhide highlighter", { type: "rack.highlight.set", hidden: false }),
+  option(17, "Unhide highlighter", {
+    type: "rack.highlight.set",
+    hidden: false,
+  }),
   option(18, "CDU on", { type: "advanced-sx.cdu.set", enabled: true }),
   option(19, "CDU off", { type: "advanced-sx.cdu.set", enabled: false }),
+  option(774, RACK_VIEW_LABELS["behind-right-tilt"], {
+    type: "rack.view.set",
+    view: "behind-right-tilt",
+  }),
+  option(775, RACK_VIEW_LABELS["behind-left-tilt"], {
+    type: "rack.view.set",
+    view: "behind-left-tilt",
+  }),
 ];
 
 // Stable row-major IDs: A1, B1, C1, D1, A2 ... D12.
@@ -132,12 +205,21 @@ let slotIndex = 0;
 for (let row = 1; row <= 12; row++) {
   for (const column of "ABCD") {
     const slotId = `${column}${row}`;
-    options.push(option(101 + slotIndex, `Focus slot ${slotId}`, { type: "advanced-sx.slot.focus", slotId }));
+    options.push(
+      option(101 + slotIndex, `Focus slot ${slotId}`, {
+        type: "advanced-sx.slot.focus",
+        slotId,
+      }),
+    );
     for (const { id: equipmentId, label, offset } of slotActions) {
       if (equipmentId === "cpu" && slotId === TOP_SLOT) continue;
-      options.push(option(1000 + slotIndex * 10 + offset, `${slotId}: ${label}`, {
-        type: "advanced-sx.slot.set", slotId, equipmentId,
-      }));
+      options.push(
+        option(1000 + slotIndex * 10 + offset, `${slotId}: ${label}`, {
+          type: "advanced-sx.slot.set",
+          slotId,
+          equipmentId,
+        }),
+      );
     }
     slotIndex++;
   }
@@ -148,8 +230,13 @@ const byLocation = new Map();
 const byCommand = new Map();
 for (const entry of LOCATION_OPTIONS) {
   const key = commandKey(entry.command);
-  if (!Number.isSafeInteger(entry.location) || entry.location < 1
-    || byLocation.has(entry.location) || byCommand.has(key)) throw new Error("Invalid or duplicate location mapping.");
+  if (
+    !Number.isSafeInteger(entry.location) ||
+    entry.location < 1 ||
+    byLocation.has(entry.location) ||
+    byCommand.has(key)
+  )
+    throw new Error("Invalid or duplicate location mapping.");
   byLocation.set(entry.location, entry);
   byCommand.set(key, entry.location);
 }
@@ -163,6 +250,7 @@ export function getCommandLocation(command) {
 
 /** Validate a numeric location and return fresh semantic fields for server use. */
 export function getLocationCommand(location) {
-  if (!Number.isSafeInteger(location) || !byLocation.has(location)) invalid("Unknown location ID.");
+  if (!Number.isSafeInteger(location) || !byLocation.has(location))
+    invalid("Unknown location ID.");
   return { ...byLocation.get(location).command };
 }

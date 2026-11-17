@@ -67,7 +67,7 @@ function DragGesture() {
   );
 }
 
-export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onReset, disabled = false }) {
+export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onRearTilt, onReset, disabled = false }) {
   const id = useId();
   const viewport = useRef(null);
   const scene = useRef(null);
@@ -176,7 +176,7 @@ export const RackOrbitPanel = memo(function RackOrbitPanel({ onCameraChange, onR
 
   const handleRearTilt = (side) => {
     if (inactive || isDisabled.current) return;
-    scene.current?.setRearTilt(side);
+    if (scene.current?.setRearTilt(side)) onRearTilt?.(side);
   };
 
   return (
